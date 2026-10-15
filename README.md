@@ -25,11 +25,10 @@ uv pip install --python .venv\Scripts\python.exe -e ".[test]"
 
 The configuration in `experiments/ml1m_sasrec.json` caps every attack at 20,000 **actual oracle prefix requests** and preserves method-specific sequence generation. It is an integration comparison, not any paper's original budget. The CLI saves actual requests and checkpoints for every run. Formal training is intended for the user's CUDA server; local checks do not generate research results. Copy the ignored `data/ml-1m.txt` to the server unchanged. `preprocess` rejects a file whose SHA-256 differs from the frozen configuration.
 
-Follow the [Windows RTX 4090 guide](docs/WINDOWS_4090_RUN.md) for the full `git clone`/`git pull`, CUDA PyTorch installation, data transfer, verification and run commands. Once the environment and data are ready, run:
+Follow the [Windows RTX 4090 CMD guide](docs/WINDOWS_4090_RUN.md) for the full `git clone`/`git pull`, CUDA PyTorch installation, data transfer, verification and run commands. Once the environment and data are ready, run in Command Prompt:
 
-```powershell
-$PythonExe = (Resolve-Path .\.venv\Scripts\python.exe).Path
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_matrix.ps1 -Python $PythonExe -Device cuda
+```bat
+call scripts\run_matrix.cmd
 ```
 
 The launcher runs clean, GRO, and continued-clean teachers. DFME and BECOME produce four primary cells plus two continued-clean control cells. Teacher training supports `--resume`; attack runs restart after interruption.

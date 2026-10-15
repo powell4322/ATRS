@@ -11,7 +11,7 @@
 
 ## Server commands
 
-For the Windows RTX 4090 server, use the complete [Windows run guide](WINDOWS_4090_RUN.md). It includes `git clone`, CUDA PyTorch installation, transfer and verification of the ignored dataset, and the PowerShell matrix command.
+For the Windows RTX 4090 server, use the complete [CMD run guide](WINDOWS_4090_RUN.md). It includes `git clone`, CUDA PyTorch installation, transfer and verification of the ignored dataset, and the `scripts\run_matrix.cmd` matrix command.
 
 For a Linux CUDA server, use:
 
