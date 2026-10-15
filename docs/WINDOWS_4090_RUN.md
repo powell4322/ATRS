@@ -20,7 +20,7 @@ The ML-1M, Steam and Beauty text datasets are included in Git. Verify the ML-1M 
 ```bat
 dir data
 certutil -hashfile data\ml-1m.txt SHA256
-.venv\Scripts\python.exe -m atrs.cli preprocess --config experiments/ml1m_sasrec.json
+.venv\Scripts\python.exe -m atrs.cli preprocess --config configs/phase1/ml1m_sasrec_seed42.json
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe scripts\smoke.py
 ```
@@ -33,7 +33,7 @@ The expected data SHA-256 is `b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236d
 call scripts\run_matrix.cmd
 ```
 
-The script checks CUDA and the data hash, trains clean, GRO and continued-clean teachers, and then runs DFME and BECOME against each. Four cells are the primary comparison; two are continued-clean controls. Detailed outputs remain under `runs\ml1m_sasrec_seed42\` and are ignored by Git. Once all six cells pass validation, the script writes the summary to `docs\RESULTS.md` and copies the six result JSON files into `docs\results\ml1m_sasrec_seed42\`. Inspect both the summary and raw outputs before publishing. This full run has **not** been executed locally.
+The script checks CUDA and the data hash, trains clean, GRO and continued-clean teachers, and then runs DFME and BECOME against each. Four cells are the primary comparison; two are continued-clean controls. Detailed logs, checkpoints and query records remain under `runs\phase1\ml1m_sasrec_seed42\` and are ignored by Git. Once all six cells pass validation, the script writes descriptive analysis to `docs\RESULTS.md` and copies six result JSON files plus `manifest.json` into `result\phase1\ml1m_sasrec_seed42\`. Inspect both the analysis and raw outputs before publishing. This full run has **not** been executed locally.
 
 To update an existing server checkout before a first run, open CMD in the repository root and use:
 
@@ -44,12 +44,12 @@ git pull --ff-only origin main
 
 The launcher starts attack cells from scratch and can overwrite result files if run again. Teacher jobs support the CLI's `--resume` flag when invoked individually; see [experiment plan](EXPERIMENT_PLAN.md). Keep the Git commit, configuration hash and data hash recorded in each run's result files with the server outputs.
 
-After reviewing the generated results, publish the research summary and six machine-readable result files from the server checkout:
+After reviewing the generated results, publish the research summary, six machine-readable result files and provenance manifest from the server checkout:
 
 ```bat
 type docs\RESULTS.md
 git status --short
-git add docs\RESULTS.md docs\results
+git add docs\RESULTS.md result\phase1\ml1m_sasrec_seed42
 git commit -m "Record ML-1M SASRec phase I results"
 git push origin main
 ```

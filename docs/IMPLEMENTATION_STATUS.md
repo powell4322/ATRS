@@ -9,7 +9,7 @@
 | DFME | Autoregressive generation and rank/negative hinge implemented; minimal extraction smoke passed. Full source-result parity open. |
 | BECOME | Dynamic phase selection, rank/frequency sampler and weighted objective implemented; minimal extraction smoke passed. Paper/source discrepancies documented. |
 | Evaluation | Unified full-ranking plus deterministic sampled 100-negative mode implemented and tested. Original-paper metric parity open. |
-| Checkpoints, resume, logs | Teacher model/optimizer/local-student checkpointing, teacher resume, JSONL logs, compressed labelled-query export and result JSON implemented. Mid-attack resume and a CLI for controlled query-dataset reuse remain incomplete. |
+| Checkpoints, resume, logs and result publication | Teacher model/optimizer/local-student checkpointing, teacher resume, JSONL logs and compressed labelled-query export implemented. A complete six-cell matrix is validated into versioned `result/` JSON and `docs/RESULTS.md` analysis. Mid-attack resume and a CLI for controlled query-dataset reuse remain incomplete. |
 | Formal ML-1M/SASRec run | **Not executed. No research metrics available.** Local work is for research and code; the user will run the formal matrix on a CUDA server. The launchers cover four primary and two continued-clean control cells. |
 
 ## Executed checks
@@ -18,7 +18,7 @@
 & .venv\Scripts\python.exe -m compileall -q src scripts tests
 & .venv\Scripts\python.exe -m pytest -q
 & .venv\Scripts\python.exe scripts\smoke.py
-& .venv\Scripts\python.exe -m atrs.cli preprocess --config experiments/ml1m_sasrec.json
+& .venv\Scripts\python.exe -m atrs.cli preprocess --config configs/phase1/ml1m_sasrec_seed42.json
 ```
 
 Five deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.

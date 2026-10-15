@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 PYTHON_BIN="${PYTHON_BIN:-python}"
-CONFIG="${CONFIG:-experiments/ml1m_sasrec.json}"
+CONFIG="${CONFIG:-configs/phase1/ml1m_sasrec_seed42.json}"
 DEVICE="${DEVICE:-cuda}"
 
 if [[ "$DEVICE" == cuda* ]]; then

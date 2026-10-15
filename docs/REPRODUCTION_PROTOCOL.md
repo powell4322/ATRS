@@ -8,7 +8,7 @@ Measure whether GRO changes a frozen SASRec teacher's extractability under DFME 
 
 **A. Paper-native verification.** Keep each implemented paper's generation mechanism, ranking loss, nominal generated-sequence budget, training schedule, and evaluation protocol. DFME/BECOME use sampled 100-negative recommendation evaluation; GRO uses full ranking. This repository has the relevant loss and evaluation primitives but has **not** completed quantitative paper-native reproduction. The supplied preprocessed `ml-1m.txt` differs from the rating totals in the papers and lacks original timestamps. No paper-native numbers are claimed.
 
-**B. Unified defense comparison.** All cells use `experiments/ml1m_sasrec.json` and a 20,000-actual-request cap. Clean and defended teachers start from the same architecture and clean checkpoint; the defended teacher is then fine-tuned with GRO. Each external attack uses a fresh SASRec student. The local GRO student is separate and is discarded after training. Every attack sees only ordered Top-100 item IDs, never scores or real user training histories. Method-specific losses and generators remain separate.
+**B. Unified defense comparison.** All cells use `configs/phase1/ml1m_sasrec_seed42.json` and a 20,000-actual-request cap. Clean and defended teachers start from the same architecture and clean checkpoint; the defended teacher is then fine-tuned with GRO. Each external attack uses a fresh SASRec student. The local GRO student is separate and is discarded after training. Every attack sees only ordered Top-100 item IDs, never scores or real user training histories. Method-specific losses and generators remain separate.
 
 ## Dataset and teacher
 

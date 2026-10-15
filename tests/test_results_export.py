@@ -19,7 +19,7 @@ def test_results_are_published_only_for_a_consistent_complete_matrix(tmp_path):
     config_path.write_text(json.dumps(config), encoding="utf-8")
     config_hash = export_results.sha256(config_path)
     report = tmp_path / "docs" / "RESULTS.md"
-    archive = tmp_path / "docs" / "results"
+    archive = tmp_path / "result" / "phase1" / "ml1m_sasrec_seed42"
     with pytest.raises(ValueError, match="incomplete matrix"):
         export_results.publish(config_path, report, archive)
     assert not report.exists()
@@ -40,8 +40,13 @@ def test_results_are_published_only_for_a_consistent_complete_matrix(tmp_path):
         }
         (source / f"{defense}_{attack}.json").write_text(json.dumps(result), encoding="utf-8")
     export_results.publish(config_path, report, archive)
-    assert len(list(archive.glob("*.json"))) == 6
-    assert "Status: complete six-cell" in report.read_text(encoding="utf-8")
+    assert len(list(archive.glob("*.json"))) == 7
+    manifest = json.loads((archive / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["cells"]) == 6
+    published = report.read_text(encoding="utf-8")
+    assert "Status: complete six-cell" in published
+    assert "## Descriptive differences" in published
+    assert "../result/phase1/ml1m_sasrec_seed42/manifest.json" in published
 
     broken = source / "gro_dfme.json"
     result = json.loads(broken.read_text(encoding="utf-8"))

@@ -2,7 +2,7 @@
 setlocal
 pushd "%~dp0.." || exit /b 1
 set "PYTHON_EXE=.venv\Scripts\python.exe"
-set "CONFIG=experiments/ml1m_sasrec.json"
+set "CONFIG=configs/phase1/ml1m_sasrec_seed42.json"
 
 if not exist "%PYTHON_EXE%" (
   echo Missing %PYTHON_EXE%. Create the virtual environment first. 1>&2

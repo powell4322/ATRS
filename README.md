@@ -10,6 +10,7 @@ SASRec-first benchmark for DFME/BECOME model extraction and GRO defense. The che
 - Full-ranking unified evaluation plus 100-negative sampled evaluation.
 
 The scope of omitted methods is documented in [related work](docs/RELATED_WORK.md).
+The directory roles and publication flow are in [repository layout](docs/REPOSITORY_LAYOUT.md): frozen configuration in `configs/`, server logs and checkpoints in ignored `runs/`, validated metrics in `result/`, and interpretation in `docs/`.
 
 ## Local software checks (PowerShell)
 
@@ -18,12 +19,12 @@ uv venv .venv
 uv pip install --python .venv\Scripts\python.exe -e ".[test]"
 & .venv\Scripts\python.exe -m pytest -q
 & .venv\Scripts\python.exe scripts\smoke.py
-& .venv\Scripts\python.exe -m atrs.cli preprocess --config experiments/ml1m_sasrec.json
+& .venv\Scripts\python.exe -m atrs.cli preprocess --config configs/phase1/ml1m_sasrec_seed42.json
 ```
 
 ## Formal matrix on the Windows 4090 server
 
-The configuration in `experiments/ml1m_sasrec.json` caps every attack at 20,000 **actual oracle prefix requests** and preserves method-specific sequence generation. It is an integration comparison, not any paper's original budget. The CLI saves actual requests and checkpoints for every run. Formal training is intended for the user's CUDA server; local checks do not generate research results. `git clone` obtains the three text datasets. `preprocess` rejects a file whose SHA-256 differs from the frozen configuration.
+The configuration in `configs/phase1/ml1m_sasrec_seed42.json` caps every attack at 20,000 **actual oracle prefix requests** and preserves method-specific sequence generation. It is an integration comparison, not any paper's original budget. The CLI saves actual requests and checkpoints for every run. Formal training is intended for the user's CUDA server; local checks do not generate research results. `git clone` obtains the three text datasets. `preprocess` rejects a file whose SHA-256 differs from the frozen configuration.
 
 Follow the [Windows RTX 4090 CMD guide](docs/WINDOWS_4090_RUN.md) for the full `git clone`/`git pull`, CUDA PyTorch installation, data verification, run and result-publishing commands. Once the environment is ready, run in Command Prompt:
 
@@ -32,7 +33,7 @@ call scripts\run_matrix.cmd
 ```
 
 The launcher runs clean, GRO, and continued-clean teachers. DFME and BECOME produce four primary cells plus two continued-clean control cells. Teacher training supports `--resume`; attack runs restart after interruption.
-After all six cells succeed, the launcher generates [the results page](docs/RESULTS.md) and archived result JSON files in `docs/results/`. That page currently records **pending**, since no formal GPU run has been completed.
+After all six cells succeed, the launcher generates [the results analysis page](docs/RESULTS.md) and validated result JSON files in `result/phase1/ml1m_sasrec_seed42/`. That page currently records **pending**, since no formal GPU run has been completed.
 
 ## Linux CUDA alternative
 

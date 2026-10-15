@@ -1,6 +1,6 @@
 param(
   [string]$Python = ".venv\Scripts\python.exe",
-  [string]$Config = "experiments/ml1m_sasrec.json",
+  [string]$Config = "configs/phase1/ml1m_sasrec_seed42.json",
   [string]$Device = "cuda"
 )
 

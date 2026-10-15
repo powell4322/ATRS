@@ -25,7 +25,7 @@ python scripts/smoke.py
 bash scripts/run_matrix.sh
 ```
 
-Both launchers check that PyTorch can use CUDA before training. They execute three teacher jobs and six extraction jobs: four primary comparisons plus two continued-clean controls. On Linux, `PYTHON_BIN`, `CONFIG`, and `DEVICE` can override launcher defaults. Teacher training supports `--resume`; attack runs restart after interruption. Do not run the launcher twice against the same `run_root` without intending to overwrite attack outputs. Run individual cells with `python -m atrs.cli train-teacher --defense none|gro|continued-clean` or `python -m atrs.cli run-attack --defense none|gro|continued-clean --attack dfme|become`, replacing the choice notation with one value. Add `--config experiments/ml1m_sasrec.json --device cuda` to each command.
+Both launchers check that PyTorch can use CUDA before training. They execute three teacher jobs and six extraction jobs: four primary comparisons plus two continued-clean controls. On Linux, `PYTHON_BIN`, `CONFIG`, and `DEVICE` can override launcher defaults. Teacher training supports `--resume`; attack runs restart after interruption. Do not run the launcher twice against the same `run_root` without intending to overwrite attack outputs. Run individual cells with `python -m atrs.cli train-teacher --defense none|gro|continued-clean` or `python -m atrs.cli run-attack --defense none|gro|continued-clean --attack dfme|become`, replacing the choice notation with one value. Add `--config configs/phase1/ml1m_sasrec_seed42.json --device cuda` to each command.
 
 ## Result table to populate after real runs
 

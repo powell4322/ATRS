@@ -250,7 +250,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["preprocess", "train-teacher", "run-attack"])
-    parser.add_argument("--config", default="experiments/ml1m_sasrec.json")
+    parser.add_argument("--config", default="configs/phase1/ml1m_sasrec_seed42.json")
     parser.add_argument("--defense", choices=["none", "gro", "continued-clean"])
     parser.add_argument("--attack", choices=["dfme", "become"])
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")

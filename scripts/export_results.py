@@ -1,4 +1,4 @@
-"""Publish a complete, validated phase-I result matrix into docs/."""
+"""Publish validated result JSON to result/ and analysis to docs/."""
 from __future__ import annotations
 
 import argparse
@@ -89,6 +89,20 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
     for path, _ in rows:
         shutil.copyfile(path, archive / path.name)
     commit = rows[0][1]["git_commit"]
+    manifest = {
+        "schema_version": 1,
+        "dataset": config["dataset"],
+        "backbone": config["backbone"],
+        "seed": config["seed"],
+        "git_commit": commit,
+        "config_sha256": config_hash,
+        "data_sha256": config["expected_data_sha256"],
+        "cells": [{"defense": result["defense"], "attack": result["attack"],
+                   "file": path.name, "sha256": sha256(archive / path.name)}
+                  for path, result in rows],
+    }
+    (archive / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [
         "# Phase I results: ML-1M / SASRec",
         "",
@@ -113,9 +127,32 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
         link = Path(os.path.relpath(archive / path.name, report.parent)).as_posix()
         lines.append(f"| {label} | {result['attack'].upper()} | {metric_cells} | "
                      f"{result['query_counts']['oracle_requests']} | [JSON]({link}) |")
+    indexed = {(result["defense"], result["attack"]): result for _, result in rows}
     lines += [
         "",
-        "These metrics are generated from the archived result JSON, not entered by hand. The JSON files also contain sampled-ranking evaluation, query counts, checkpoint hashes and timing. Do not mix sampled and full-ranking values in this table.",
+        "## Descriptive differences",
+        "",
+        "Each value is GRO minus the named comparator on the same attack. These are single-seed differences, not significance estimates.",
+        "",
+        "| Attack | Comparator | Δ teacher HR@10 | Δ teacher NDCG@10 | Δ student HR@10 | Δ student NDCG@10 | Δ Agr@1 | Δ Agr@10 |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    measures = (("teacher_full", "hr@10"), ("teacher_full", "ndcg@10"),
+                ("student_full", "hr@10"), ("student_full", "ndcg@10"),
+                ("student_full", "agr@1"), ("student_full", "agr@10"))
+    for attack in ("dfme", "become"):
+        defended = indexed[("gro", attack)]
+        for comparator in ("none", "continued-clean"):
+            baseline = indexed[(comparator, attack)]
+            differences = [defended[section][metric] - baseline[section][metric]
+                           for section, metric in measures]
+            cells = " | ".join(f"{value:+.4f}" for value in differences)
+            lines.append(f"| {attack.upper()} | {comparator} | {cells} |")
+    lines += [
+        "",
+        "These metrics and differences are generated from the validated result JSON, not entered by hand. Negative student or agreement differences indicate lower extraction metrics in this run; teacher utility, actual request counts and multi-seed uncertainty must also be examined before making defense claims. The JSON files also contain sampled-ranking evaluation, query counts, checkpoint hashes and timing. Do not mix sampled and full-ranking values in one table.",
+        "",
+        f"Machine-readable provenance: [manifest.json]({Path(os.path.relpath(archive / 'manifest.json', report.parent)).as_posix()}).",
         "",
         "The source data, model implementation and baseline deviations are documented in [DATA_PROTOCOL.md](DATA_PROTOCOL.md), [REPRODUCTION_PROTOCOL.md](REPRODUCTION_PROTOCOL.md) and [KNOWN_DEVIATIONS.md](KNOWN_DEVIATIONS.md).",
         "",
@@ -126,9 +163,9 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="experiments/ml1m_sasrec.json")
+    parser.add_argument("--config", default="configs/phase1/ml1m_sasrec_seed42.json")
     parser.add_argument("--report", default="docs/RESULTS.md")
-    parser.add_argument("--archive", default="docs/results/ml1m_sasrec_seed42")
+    parser.add_argument("--archive", default="result/phase1/ml1m_sasrec_seed42")
     args = parser.parse_args()
     config_path = Path(args.config).resolve()
     publish(config_path, Path(args.report).resolve(), Path(args.archive).resolve())
