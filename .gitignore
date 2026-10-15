@@ -1,0 +1,13 @@
+.venv/
+.upstream/
+.audit/
+data/
+paper/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+artifacts/
+runs/
+*.pt
+*.pth

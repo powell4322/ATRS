@@ -1,0 +1,73 @@
+{
+  "dataset": "ml-1m",
+  "backbone": "sasrec",
+  "data_path": "data/ml-1m.txt",
+  "run_root": "runs/ml1m_sasrec_seed42",
+  "seed": 42,
+  "model": {
+    "max_len": 400,
+    "hidden": 64,
+    "layers": 2,
+    "heads": 2,
+    "dropout": 0.1,
+    "attention_dropout": 0.1
+  },
+  "training": {
+    "lr": 0.001,
+    "weight_decay": 0.01,
+    "batch_size": 32,
+    "eval_batch_size": 128,
+    "sliding_fraction": 0.5,
+    "clean_epochs": 1000,
+    "finetune_epochs": 20,
+    "patience": 30
+  },
+  "gro": {
+    "margin_rank": 0.5,
+    "margin_neg": 0.5,
+    "margin_swap": 0.5,
+    "swap_weight": 0.01
+  },
+  "api": {
+    "topk": 100,
+    "batch_size": 64,
+    "max_requests": 20000
+  },
+  "attacks": {
+    "dfme": {
+      "n_sequences": 100,
+      "sequence_len": 200,
+      "generation_batch_size": 20,
+      "batch_size": 128,
+      "epochs": 20,
+      "lr": 0.001,
+      "margin_rank": 0.5,
+      "margin_neg": 0.5
+    },
+    "become": {
+      "n_sequences": 166,
+      "sequence_len": 200,
+      "phases": 4,
+      "initial_fraction": 0.2,
+      "select_fraction": 0.5,
+      "alpha": 0.5,
+      "epochs_per_phase": 4,
+      "batch_size": 128,
+      "lr": 0.001,
+      "margin_rank": 0.75,
+      "margin_neg": 1.5,
+      "beta": 0.5
+    },
+    "sim4rec": {
+      "n_seed_sequences": 80,
+      "sequence_len": 200,
+      "pretrain_epochs": 30,
+      "adversarial_rounds": 125,
+      "round_batch": 32,
+      "memory_batches": 100,
+      "epochs_per_round": 1,
+      "batch_size": 128,
+      "lr": 0.001
+    }
+  }
+}

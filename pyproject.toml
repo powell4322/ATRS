@@ -1,0 +1,20 @@
+[project]
+name = "atrs"
+version = "0.1.0"
+description = "Sequential recommender extraction and GRO defense benchmark"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.3,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
