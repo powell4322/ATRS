@@ -19,8 +19,8 @@ from .data import load_split
 from .evaluation import evaluate
 from .gro import gro_step
 from .model import SASRec
-from .training import (SASWindows, append_jsonl, load_checkpoint, save_checkpoint,
-                       set_seed, source_adamw)
+from .training import (SASWindows, append_jsonl, git_commit, load_checkpoint,
+                       save_checkpoint, set_seed, source_adamw)
 
 
 def _configuration(path: str) -> dict:
@@ -138,6 +138,7 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                               batch_size=settings["eval_batch_size"])
         record = {"event": "teacher_epoch", "dataset": config["dataset"],
                   "defense": defense, "seed": seed, "epoch": epoch + 1,
+                  "git_commit": git_commit(),
                   "loss": {key: value / steps for key, value in sums.items()},
                   "validation": validation, "seconds": time.perf_counter() - started,
                   "data_sha256": split.source_sha256,
@@ -228,6 +229,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                                device=device, batch_size=config["training"]["eval_batch_size"])
     result = {"dataset": config["dataset"], "backbone": config["backbone"],
               "defense": defense, "attack": attack, "seed": config["seed"],
+              "git_commit": git_commit(),
               "teacher_checkpoint": str(teacher_checkpoint),
               "teacher_sha256": _identity(teacher_checkpoint),
               "student_checkpoint": str(out), "student_sha256": _identity(out),

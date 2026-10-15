@@ -6,6 +6,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
+if ($Device -like "cuda*") {
+  & $Python -c "import torch; assert torch.cuda.is_available(), 'CUDA is unavailable to PyTorch'; print(torch.__version__, torch.cuda.get_device_name(0))"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 & $Python -m atrs.cli preprocess --config $Config
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $Python -m atrs.cli train-teacher --config $Config --defense none --device $Device
