@@ -257,7 +257,7 @@ def _sim4rec_choice(ranking: list[int], frequencies: list[int], prefix: list[int
         if freq < 3:
             weight = 1 / (freq + 1)
         else:
-            weight = 0.5 * math.sqrt(math.log(max(freq, 2))) / (freq + 1)
+            weight = 0.5 * math.sqrt(math.log(freq) / (freq + 1))
         if item in prefix:
             weight /= 2
         weights.append(weight)
@@ -325,6 +325,7 @@ def run_sim4rec(oracle: RankingOracle, student: nn.Module,
                                 batch_size=batch_size, device=device, rng=rng))
     generator_optimizer = torch.optim.Adam(generator.parameters(), lr=0.01, weight_decay=0.01)
     bank = seed_samples.copy()
+    all_samples = seed_samples.copy()
     for _ in range(adversarial_rounds):
         generator.train()
         generated, logp = generator.sample([rng.randint(1, n_items) for _ in range(round_batch)],
@@ -332,6 +333,7 @@ def run_sim4rec(oracle: RankingOracle, student: nn.Module,
         oracle.counts.generated_sequences += round_batch
         current: list[Sample] = []
         _query(oracle, generated, current)
+        all_samples.extend(current)
         student.eval()
         with torch.no_grad():
             tokens = torch.tensor([left_pad(s.prefix, student.max_len) for s in current], device=device)
@@ -352,4 +354,4 @@ def run_sim4rec(oracle: RankingOracle, student: nn.Module,
         for _ in range(distill_epochs_per_round):
             losses.append(distill_epoch(student, student_optimizer, bank, "sim4rec",
                                        batch_size=batch_size, device=device, rng=rng))
-    return seed_samples + bank, losses, generator
+    return all_samples, losses, generator

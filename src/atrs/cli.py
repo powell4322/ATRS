@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
+import io
 import json
 import random
 import time
@@ -42,6 +44,16 @@ def _identity(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _save_queries(path: Path, samples) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+            with io.TextIOWrapper(compressed, encoding="utf-8", newline="\n") as stream:
+                for sample in samples:
+                    stream.write(json.dumps({"prefix": sample.prefix, "ranking": sample.ranking}) + "\n")
+    return _identity(path)
 
 
 def _fit_teacher(config: dict, split, defense: str, run_root: Path,
@@ -196,11 +208,14 @@ def _run_attack(config: dict, split, defense: str, attack: str,
             batch_size=settings["batch_size"], device=device)
     else:
         raise ValueError(attack)
+    query_path = run_root / "queries" / f"{defense}_{attack}.jsonl.gz"
+    query_sha256 = _save_queries(query_path, samples)
     out = run_root / "checkpoints" / f"student_{defense}_{attack}.pt"
     save_checkpoint(out, model=student, optimizer=optimizer, epoch=len(losses),
                     metadata={"attack": attack, "defense": defense,
                               "data_sha256": split.source_sha256,
                               "teacher_sha256": _identity(teacher_checkpoint),
+                              "query_dataset_sha256": query_sha256,
                               "oracle_counts": oracle.counters()})
     teacher_metrics = evaluate(teacher, split, mode="full", teacher=None,
                                device=device, batch_size=config["training"]["eval_batch_size"])
@@ -213,6 +228,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
               "teacher_checkpoint": str(teacher_checkpoint),
               "teacher_sha256": _identity(teacher_checkpoint),
               "student_checkpoint": str(out), "student_sha256": _identity(out),
+              "query_dataset": str(query_path), "query_dataset_sha256": query_sha256,
               "data_sha256": split.source_sha256,
               "budget_definition": "actual unique prefix requests to ranking-only oracle",
               "query_counts": oracle.counters(), "teacher_full": teacher_metrics,

@@ -10,7 +10,7 @@
 | BECOME | Dynamic phase selection, rank/frequency sampler and weighted objective implemented; minimal extraction smoke passed. Paper/source discrepancies documented. |
 | Sim4Rec | CSG penalties, GRU pretraining, terminal reward policy update, memory bank, listwise loss implemented; minimal extraction smoke passed. Paper-derived, no official code equivalence. |
 | Evaluation | Unified full-ranking plus deterministic sampled 100-negative mode implemented and tested. Original-paper metric parity open. |
-| Checkpoints, resume, logs | Teacher model/optimizer/local-student checkpointing, teacher resume, JSONL logs and result JSON implemented. Mid-attack resume and query-dataset reuse remain incomplete. |
+| Checkpoints, resume, logs | Teacher model/optimizer/local-student checkpointing, teacher resume, JSONL logs, compressed labelled-query export and result JSON implemented. Mid-attack resume and a CLI for controlled query-dataset reuse remain incomplete. |
 | Formal six-cell ML-1M/SASRec run | **Not executed. No research metrics available.** Current host has CPU-only PyTorch and no accessible NVIDIA GPU. |
 
 ## Executed checks
@@ -22,6 +22,6 @@
 & .venv\Scripts\python.exe -m atrs.cli preprocess --config experiments/ml1m_sasrec.json
 ```
 
-Four deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME/Sim4Rec minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.
+Five deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME/Sim4Rec minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.
 
 **Formal experiment readiness:** the six-cell launcher and result schema exist, but quantitative claims are not ready. Before treating results as a paper-faithful benchmark, resolve the deviations in `KNOWN_DEVIATIONS.md`, run converged teachers and all six attacks on suitable compute, repeat with several seeds, and inspect actual query counts plus the continued-clean control.

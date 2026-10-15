@@ -4,7 +4,8 @@ import pytest
 import torch
 
 from atrs.api import BudgetExhausted, RankingOracle
-from atrs.attacks import listwise_loss, pairwise_loss
+from atrs.attacks import Sample, listwise_loss, pairwise_loss
+from atrs.cli import _save_queries
 from atrs.data import load_split
 from atrs.evaluation import evaluate
 from atrs.model import SASRec
@@ -82,3 +83,10 @@ def test_full_ranking_filters_seen_items_for_both_models(tmp_path):
     assert result["agr@1"] == 1.0
     assert result["agr@10"] == 1.0
     assert math.isfinite(result["ndcg@10"])
+
+
+def test_exported_query_dataset_has_stable_checksum(tmp_path):
+    samples = [Sample((1, 2), (4, 3, 2)), Sample((2, 4), (1, 5, 6))]
+    first = _save_queries(tmp_path / "a.jsonl.gz", samples)
+    second = _save_queries(tmp_path / "b.jsonl.gz", samples)
+    assert first == second
