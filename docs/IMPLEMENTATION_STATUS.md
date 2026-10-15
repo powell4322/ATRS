@@ -24,4 +24,6 @@
 
 Five deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME/Sim4Rec minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.
 
+The supplied ML-1M file also passed a single real-data SASRec forward/backward check at the configured 400-token length (2 windows from 7,068 training windows, finite loss and embedding gradients). This was one batch, not an epoch or a utility measurement.
+
 **Formal experiment readiness:** the six-cell launcher and result schema exist, but quantitative claims are not ready. Before treating results as a paper-faithful benchmark, resolve the deviations in `KNOWN_DEVIATIONS.md`, run converged teachers and all six attacks on suitable compute, repeat with several seeds, and inspect actual query counts plus the continued-clean control.
