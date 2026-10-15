@@ -2,7 +2,7 @@
 
 ## Order
 
-1. Copy the exact local `data/ml-1m.txt` to the CUDA server. `preprocess` checks its SHA-256 against the frozen configuration and prints split metadata.
+1. Clone or update the repository on the CUDA server. The three text datasets are tracked in Git. `preprocess` checks the ML-1M SHA-256 against the frozen configuration and prints split metadata.
 2. Run deterministic tests and the tiny smoke script. Do not report smoke metrics as research results.
 3. Train clean SASRec to validation convergence; GRO and continued-clean both start from its best checkpoint and use the same fine-tuning epoch allowance.
 4. Freeze each teacher and run DFME and BECOME independently. Use fresh students; never import the GRO local student into attacks.
@@ -11,7 +11,7 @@
 
 ## Server commands
 
-For the Windows RTX 4090 server, use the complete [CMD run guide](WINDOWS_4090_RUN.md). It includes `git clone`, CUDA PyTorch installation, transfer and verification of the ignored dataset, and the `scripts\run_matrix.cmd` matrix command.
+For the Windows RTX 4090 server, use the complete [CMD run guide](WINDOWS_4090_RUN.md). It includes `git clone`, CUDA PyTorch installation, data verification, the `scripts\run_matrix.cmd` matrix command and result publication into `docs/`.
 
 For a Linux CUDA server, use:
 

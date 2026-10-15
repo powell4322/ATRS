@@ -24,4 +24,9 @@ Per user, the final action is test, the preceding action is validation, and all 
 
 For unified full ranking, candidate items are all 1..N except items in the current history, with the target restored. For paper-style sampled ranking, 100 negatives are drawn with seed `seed + user_id` outside the full user sequence. This use of held-out interactions is isolated to offline evaluation and never exposed to attacks or training.
 
-The CLI rejects a source file whose SHA-256 differs from `expected_data_sha256` in the formal configuration, then writes `runs/.../data_metadata.json` with the source checksum, split sizes, and schema. Transfer the text to the server without rewriting line endings or item IDs. Steam and Beauty files are present but not processed or run in Phase I.
+The CLI rejects a source file whose SHA-256 differs from `expected_data_sha256` in the formal configuration, then writes `runs/.../data_metadata.json` with the source checksum, split sizes, and schema. The original text files for ML-1M, Steam and Beauty are tracked in Git with byte-preserving attributes; a server `git clone` obtains them directly. Steam and Beauty are present for later stages but are not processed or run in Phase I.
+
+| Later-stage file | Bytes | SHA-256 |
+|---|---:|---|
+| `data/Steam.txt` | 42,541,998 | `4df1f5feac169a522008956ba5a50fee4e9ce2c0c817cabfd463ac36df05f023` |
+| `data/Beauty.txt` | 4,538,161 | `3cd3d56cee682f5118f22d0443d5d27116075c719ec83bfdfa3e45df33a95e12` |

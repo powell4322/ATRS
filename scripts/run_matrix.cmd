@@ -28,6 +28,9 @@ for %%D in (none gro continued-clean) do (
   )
 )
 
+"%PYTHON_EXE%" scripts\export_results.py --config "%CONFIG%"
+if errorlevel 1 goto :failed
+
 popd
 exit /b 0
 

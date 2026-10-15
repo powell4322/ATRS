@@ -1,7 +1,10 @@
 .venv/
 .upstream/
 .audit/
-data/
+data/*
+!data/ml-1m.txt
+!data/Steam.txt
+!data/Beauty.txt
 paper/
 __pycache__/
 .pytest_cache/

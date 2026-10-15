@@ -24,3 +24,5 @@ foreach ($defense in @("none", "gro", "continued-clean")) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }
 }
+& $Python scripts\export_results.py --config $Config
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

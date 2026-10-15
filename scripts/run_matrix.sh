@@ -19,3 +19,4 @@ for defense in none gro continued-clean; do
     "$PYTHON_BIN" -m atrs.cli run-attack --config "$CONFIG" --defense "$defense" --attack "$attack" --device "$DEVICE"
   done
 done
+"$PYTHON_BIN" scripts/export_results.py --config "$CONFIG"

@@ -15,11 +15,10 @@ py -3.11 -m venv .venv
 .venv\Scripts\python.exe -c "import torch; assert torch.cuda.is_available(), 'CUDA unavailable'; print(torch.__version__, torch.cuda.get_device_name(0))"
 ```
 
-The dataset is ignored by Git. Transfer the exact local `ml-1m.txt` to the Windows server first, then replace `C:\TRANSFER\ml-1m.txt` in the next block with its server-side path. Copying within the server must preserve the original file bytes.
+The ML-1M, Steam and Beauty text datasets are included in Git. Verify the ML-1M file before training:
 
 ```bat
-if not exist data mkdir data
-copy /Y /B "C:\TRANSFER\ml-1m.txt" "data\ml-1m.txt"
+dir data
 certutil -hashfile data\ml-1m.txt SHA256
 .venv\Scripts\python.exe -m atrs.cli preprocess --config experiments/ml1m_sasrec.json
 .venv\Scripts\python.exe -m pytest -q
@@ -34,7 +33,7 @@ The expected data SHA-256 is `b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236d
 call scripts\run_matrix.cmd
 ```
 
-The script checks CUDA and the data hash, trains clean, GRO and continued-clean teachers, and then runs DFME and BECOME against each. Four cells are the primary comparison; two are continued-clean controls. Its outputs are under `runs\ml1m_sasrec_seed42\` and are ignored by Git. In particular, inspect `results\*.json`, `logs\*.jsonl`, `checkpoints\*.pt`, and `queries\*.jsonl.gz` before making research claims. This full run has **not** been executed locally.
+The script checks CUDA and the data hash, trains clean, GRO and continued-clean teachers, and then runs DFME and BECOME against each. Four cells are the primary comparison; two are continued-clean controls. Detailed outputs remain under `runs\ml1m_sasrec_seed42\` and are ignored by Git. Once all six cells pass validation, the script writes the summary to `docs\RESULTS.md` and copies the six result JSON files into `docs\results\ml1m_sasrec_seed42\`. Inspect both the summary and raw outputs before publishing. This full run has **not** been executed locally.
 
 To update an existing server checkout before a first run, open CMD in the repository root and use:
 
@@ -44,3 +43,15 @@ git pull --ff-only origin main
 ```
 
 The launcher starts attack cells from scratch and can overwrite result files if run again. Teacher jobs support the CLI's `--resume` flag when invoked individually; see [experiment plan](EXPERIMENT_PLAN.md). Keep the Git commit, configuration hash and data hash recorded in each run's result files with the server outputs.
+
+After reviewing the generated results, publish the research summary and six machine-readable result files from the server checkout:
+
+```bat
+type docs\RESULTS.md
+git status --short
+git add docs\RESULTS.md docs\results
+git commit -m "Record ML-1M SASRec phase I results"
+git push origin main
+```
+
+The pending `docs\RESULTS.md` in the initial checkout contains no measured numbers. Do not publish a completed-results commit until the full run and exporter succeed.

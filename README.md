@@ -1,6 +1,6 @@
 # ATRS Phase I
 
-SASRec-first benchmark for DFME/BECOME model extraction and GRO defense. The checked-in code is independently implemented from the papers; private datasets and PDFs stay under `data/` and `paper/` and are ignored by Git.
+SASRec-first benchmark for DFME/BECOME model extraction and GRO defense. The checked-in code is independently implemented from the papers. The supplied ML-1M, Steam and Beauty text files are tracked under `data/`; paper PDFs remain local under `paper/`.
 
 ## Scope
 
@@ -23,15 +23,16 @@ uv pip install --python .venv\Scripts\python.exe -e ".[test]"
 
 ## Formal matrix on the Windows 4090 server
 
-The configuration in `experiments/ml1m_sasrec.json` caps every attack at 20,000 **actual oracle prefix requests** and preserves method-specific sequence generation. It is an integration comparison, not any paper's original budget. The CLI saves actual requests and checkpoints for every run. Formal training is intended for the user's CUDA server; local checks do not generate research results. Copy the ignored `data/ml-1m.txt` to the server unchanged. `preprocess` rejects a file whose SHA-256 differs from the frozen configuration.
+The configuration in `experiments/ml1m_sasrec.json` caps every attack at 20,000 **actual oracle prefix requests** and preserves method-specific sequence generation. It is an integration comparison, not any paper's original budget. The CLI saves actual requests and checkpoints for every run. Formal training is intended for the user's CUDA server; local checks do not generate research results. `git clone` obtains the three text datasets. `preprocess` rejects a file whose SHA-256 differs from the frozen configuration.
 
-Follow the [Windows RTX 4090 CMD guide](docs/WINDOWS_4090_RUN.md) for the full `git clone`/`git pull`, CUDA PyTorch installation, data transfer, verification and run commands. Once the environment and data are ready, run in Command Prompt:
+Follow the [Windows RTX 4090 CMD guide](docs/WINDOWS_4090_RUN.md) for the full `git clone`/`git pull`, CUDA PyTorch installation, data verification, run and result-publishing commands. Once the environment is ready, run in Command Prompt:
 
 ```bat
 call scripts\run_matrix.cmd
 ```
 
 The launcher runs clean, GRO, and continued-clean teachers. DFME and BECOME produce four primary cells plus two continued-clean control cells. Teacher training supports `--resume`; attack runs restart after interruption.
+After all six cells succeed, the launcher generates [the results page](docs/RESULTS.md) and archived result JSON files in `docs/results/`. That page currently records **pending**, since no formal GPU run has been completed.
 
 ## Linux CUDA alternative
 
