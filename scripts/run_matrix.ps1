@@ -12,8 +12,10 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $Python -m atrs.cli train-teacher --config $Config --defense gro --device $Device
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-foreach ($defense in @("none", "gro")) {
-  foreach ($attack in @("dfme", "become", "sim4rec")) {
+& $Python -m atrs.cli train-teacher --config $Config --defense continued-clean --device $Device
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+foreach ($defense in @("none", "gro", "continued-clean")) {
+  foreach ($attack in @("dfme", "become")) {
     & $Python -m atrs.cli run-attack --config $Config --defense $defense --attack $attack --device $Device
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }

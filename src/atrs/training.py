@@ -89,6 +89,8 @@ def save_checkpoint(path: str | Path, *, model, optimizer, epoch: int,
                "model_config": model.config(), "epoch": epoch,
                "metadata": {**metadata, "git_commit": git_commit()},
                "torch_rng": torch.get_rng_state(), "python_rng": random.getstate()}
+    if torch.cuda.is_available():
+        payload["cuda_rng"] = torch.cuda.get_rng_state_all()
     if student is not None:
         payload["student"] = student.state_dict()
     if student_optimizer is not None:
@@ -110,6 +112,8 @@ def load_checkpoint(path: str | Path, *, model, optimizer=None,
         student_optimizer.load_state_dict(payload["student_optimizer"])
     if "torch_rng" in payload:
         torch.set_rng_state(payload["torch_rng"])
+    if "cuda_rng" in payload and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(payload["cuda_rng"])
     if "python_rng" in payload:
         random.setstate(payload["python_rng"])
     return payload

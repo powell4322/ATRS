@@ -8,10 +8,9 @@
 | Ranking-only oracle and request ledger | Implemented; deterministic unit tests cover duplicate prefixes, batching, budget exhaustion and ID-only output. |
 | DFME | Autoregressive generation and rank/negative hinge implemented; minimal extraction smoke passed. Full source-result parity open. |
 | BECOME | Dynamic phase selection, rank/frequency sampler and weighted objective implemented; minimal extraction smoke passed. Paper/source discrepancies documented. |
-| Sim4Rec | CSG penalties, GRU pretraining, terminal reward policy update, memory bank, listwise loss implemented; minimal extraction smoke passed. Paper-derived, no official code equivalence. |
 | Evaluation | Unified full-ranking plus deterministic sampled 100-negative mode implemented and tested. Original-paper metric parity open. |
 | Checkpoints, resume, logs | Teacher model/optimizer/local-student checkpointing, teacher resume, JSONL logs, compressed labelled-query export and result JSON implemented. Mid-attack resume and a CLI for controlled query-dataset reuse remain incomplete. |
-| Formal six-cell ML-1M/SASRec run | **Not executed. No research metrics available.** Current host has CPU-only PyTorch and no accessible NVIDIA GPU. |
+| Formal ML-1M/SASRec run | **Not executed. No research metrics available.** Local work is for research and code; the user will run the formal matrix on a CUDA server. The launchers cover four primary and two continued-clean control cells. |
 
 ## Executed checks
 
@@ -22,8 +21,8 @@
 & .venv\Scripts\python.exe -m atrs.cli preprocess --config experiments/ml1m_sasrec.json
 ```
 
-Five deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME/Sim4Rec minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.
+Five deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.
 
 The supplied ML-1M file also passed a single real-data SASRec forward/backward check at the configured 400-token length (2 windows from 7,068 training windows, finite loss and embedding gradients). This was one batch, not an epoch or a utility measurement.
 
-**Formal experiment readiness:** the six-cell launcher and result schema exist, but quantitative claims are not ready. Before treating results as a paper-faithful benchmark, resolve the deviations in `KNOWN_DEVIATIONS.md`, run converged teachers and all six attacks on suitable compute, repeat with several seeds, and inspect actual query counts plus the continued-clean control.
+**Formal experiment readiness:** the server launcher and result schema exist, but quantitative claims are not ready. Before treating results as a paper-faithful benchmark, resolve the deviations in `KNOWN_DEVIATIONS.md`, run converged teachers and all six cells on the server, repeat with several seeds, and inspect actual query counts plus the continued-clean control.

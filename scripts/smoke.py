@@ -9,8 +9,7 @@ from pathlib import Path
 import torch
 
 from atrs.api import RankingOracle
-from atrs.attacks import (Sample, distill_epoch, generate_become, generate_dfme,
-                          run_sim4rec)
+from atrs.attacks import distill_epoch, generate_become, generate_dfme
 from atrs.data import load_split
 from atrs.evaluation import evaluate
 from atrs.gro import gro_step
@@ -57,25 +56,17 @@ def main() -> None:
         assert load_checkpoint(checkpoint, model=reloaded)["epoch"] == 1
         metrics = evaluate(reloaded, split, mode="full", teacher=student, batch_size=2)
         assert math.isfinite(metrics["hr@10"])
-        for method in ("become", "sim4rec"):
-            oracle = RankingOracle(model, k=3, max_requests=30, batch_size=2)
-            surrogate = SASRec(6, max_len=4, hidden=8, layers=1, heads=2, dropout=0)
-            opt = torch.optim.Adam(surrogate.parameters(), lr=0.001)
-            if method == "become":
-                generated, losses = generate_become(
-                    oracle, surrogate, opt, n_sequences=2, sequence_len=3,
-                    n_items=6, rng=random.Random(7), phases=1,
-                    initial_fraction=0.5, select_fraction=0.5, alpha=0.5,
-                    distill_epochs_per_phase=1, batch_size=2, device="cpu",
-                    margin_rank=0.5, margin_neg=0.5, beta=0.5)
-            else:
-                generated, losses, _ = run_sim4rec(
-                    oracle, surrogate, opt, n_seed_sequences=2, sequence_len=3,
-                    n_items=6, rng=random.Random(7), pretrain_epochs=1,
-                    adversarial_rounds=1, round_batch=2, memory_batches=2,
-                    distill_epochs_per_round=1, batch_size=2, device="cpu")
-            assert generated and losses and all(math.isfinite(value) for value in losses)
-        print("smoke passed: data, SASRec, oracle, DFME, BECOME, Sim4Rec, GRO, checkpoint, evaluation")
+        oracle = RankingOracle(model, k=3, max_requests=30, batch_size=2)
+        surrogate = SASRec(6, max_len=4, hidden=8, layers=1, heads=2, dropout=0)
+        opt = torch.optim.Adam(surrogate.parameters(), lr=0.001)
+        generated, losses = generate_become(
+            oracle, surrogate, opt, n_sequences=2, sequence_len=3,
+            n_items=6, rng=random.Random(7), phases=1,
+            initial_fraction=0.5, select_fraction=0.5, alpha=0.5,
+            distill_epochs_per_phase=1, batch_size=2, device="cpu",
+            margin_rank=0.5, margin_neg=0.5, beta=0.5)
+        assert generated and losses and all(math.isfinite(value) for value in losses)
+        print("smoke passed: data, SASRec, oracle, DFME, BECOME, GRO, checkpoint, evaluation")
 
 
 if __name__ == "__main__":

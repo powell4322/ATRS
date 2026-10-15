@@ -24,4 +24,4 @@ Per user, the final action is test, the preceding action is validation, and all 
 
 For unified full ranking, candidate items are all 1..N except items in the current history, with the target restored. For paper-style sampled ranking, 100 negatives are drawn with seed `seed + user_id` outside the full user sequence. This use of held-out interactions is isolated to offline evaluation and never exposed to attacks or training.
 
-The CLI writes `runs/.../data_metadata.json` with the source checksum, split sizes, and schema. Steam and Beauty files are present but not processed or run in Phase I.
+The CLI rejects a source file whose SHA-256 differs from `expected_data_sha256` in the formal configuration, then writes `runs/.../data_metadata.json` with the source checksum, split sizes, and schema. Transfer the text to the server without rewriting line endings or item IDs. Steam and Beauty files are present but not processed or run in Phase I.

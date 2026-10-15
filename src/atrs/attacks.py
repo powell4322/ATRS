@@ -8,13 +8,12 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from typing import Iterable
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .api import BudgetExhausted, RankingOracle
+from .api import RankingOracle
 from .data import left_pad
 
 
@@ -51,17 +50,6 @@ def pairwise_loss(scores: torch.Tensor, rankings: torch.Tensor, negatives: torch
     return rank_loss + neg_loss if beta is None else beta * rank_loss + (1 - beta) * neg_loss
 
 
-def listwise_loss(scores: torch.Tensor, rankings: torch.Tensor,
-                  negatives: torch.Tensor) -> torch.Tensor:
-    """Sim4Rec Eq. 9-10: Plackett-Luce top-K likelihood with N negatives."""
-    ordered = torch.cat([rankings, negatives], dim=1)
-    selected = scores.gather(1, ordered)
-    k = rankings.size(1)
-    terms = [torch.logsumexp(selected[:, position:], dim=1) - selected[:, position]
-             for position in range(k)]
-    return torch.stack(terms, dim=1).sum(dim=1).mean()
-
-
 def distill_epoch(student: nn.Module, optimizer: torch.optim.Optimizer,
                   samples: list[Sample], method: str, *, batch_size: int,
                   device: str, rng: random.Random, margin_rank: float = 0.5,
@@ -80,9 +68,7 @@ def distill_epoch(student: nn.Module, optimizer: torch.optim.Optimizer,
         negs = negatives_outside_topk(ranks, student.n_items,
                                       ranks.size(1) * negatives_per_positive)
         scores = student.next_scores(tokens)
-        if method == "sim4rec":
-            loss = listwise_loss(scores, ranks, negs)
-        elif method in {"dfme", "become"}:
+        if method in {"dfme", "become"}:
             loss = pairwise_loss(scores, ranks, negs, margin_rank, margin_neg, beta)
         else:
             raise ValueError(method)
@@ -217,141 +203,3 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
                                        margin_neg=margin_neg, beta=beta,
                                        negatives_per_positive=max(1, (n_items - oracle.k) // oracle.k)))
     return samples, losses
-
-
-class GRUGenerator(nn.Module):
-    """Sim4Rec sequential generator (GRU)."""
-    def __init__(self, n_items: int, hidden: int = 64):
-        super().__init__()
-        self.n_items = n_items
-        self.embedding = nn.Embedding(n_items + 1, hidden)
-        self.gru = nn.GRU(hidden, hidden, batch_first=True)
-        self.head = nn.Linear(hidden, n_items)
-
-    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
-        states, _ = self.gru(self.embedding(tokens))
-        return self.head(states)
-
-    def sample(self, starts: list[int], length: int, device: str) -> tuple[list[tuple[int, ...]], torch.Tensor]:
-        tokens = torch.tensor(starts, device=device).unsqueeze(1)
-        current = tokens
-        hidden = None
-        log_probabilities = []
-        for _ in range(length - 1):
-            output, hidden = self.gru(self.embedding(current), hidden)
-            logits = self.head(output[:, -1, :])
-            distribution = torch.distributions.Categorical(logits=logits)
-            item = distribution.sample() + 1
-            log_probabilities.append(distribution.log_prob(item - 1))
-            tokens = torch.cat([tokens, item[:, None]], dim=1)
-            current = item[:, None]
-        logp = torch.stack(log_probabilities, 1).sum(1) if log_probabilities else torch.zeros(len(starts), device=device)
-        return [tuple(row) for row in tokens.tolist()], logp
-
-
-def _sim4rec_choice(ranking: list[int], frequencies: list[int], prefix: list[int],
-                    rng: random.Random) -> int:
-    weights = []
-    for item in ranking:
-        freq = frequencies[item]
-        if freq < 3:
-            weight = 1 / (freq + 1)
-        else:
-            weight = 0.5 * math.sqrt(math.log(freq) / (freq + 1))
-        if item in prefix:
-            weight /= 2
-        weights.append(weight)
-    selected = rng.choices(ranking, weights=weights, k=1)[0]
-    frequencies[selected] += 1
-    return selected
-
-
-def generate_sim4rec_seed(oracle: RankingOracle, *, n_sequences: int,
-                          sequence_len: int, n_items: int,
-                          rng: random.Random) -> tuple[list[Sample], list[tuple[int, ...]]]:
-    samples: list[Sample] = []
-    sequences = [[rng.randint(1, n_items)] for _ in range(n_sequences)]
-    oracle.counts.generated_sequences += n_sequences
-    frequencies = [0] * (n_items + 1)
-    for _ in range(sequence_len):
-        prefixes = [tuple(seq) for seq in sequences]
-        rankings = _query(oracle, prefixes, samples)
-        if len(sequences[0]) < sequence_len:
-            for seq, ranking in zip(sequences, rankings):
-                seq.append(_sim4rec_choice(ranking, frequencies, seq, rng))
-    return samples, [tuple(seq) for seq in sequences]
-
-
-def pretrain_generator(generator: GRUGenerator, sequences: list[tuple[int, ...]], *,
-                       epochs: int, batch_size: int, device: str, lr: float = 0.01) -> list[float]:
-    optimizer = torch.optim.Adam(generator.parameters(), lr=lr, weight_decay=0.01)
-    losses = []
-    for _ in range(epochs):
-        generator.train()
-        epoch_losses = []
-        for start in range(0, len(sequences), batch_size):
-            batch = torch.tensor(sequences[start:start + batch_size], device=device)
-            if batch.size(1) < 2:
-                continue
-            logits = generator(batch[:, :-1])
-            loss = F.cross_entropy(logits.reshape(-1, generator.n_items), (batch[:, 1:] - 1).reshape(-1))
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            optimizer.step()
-            epoch_losses.append(float(loss.detach()))
-        losses.append(sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0.0)
-    return losses
-
-
-def run_sim4rec(oracle: RankingOracle, student: nn.Module,
-                student_optimizer: torch.optim.Optimizer, *, n_seed_sequences: int,
-                sequence_len: int, n_items: int, rng: random.Random,
-                pretrain_epochs: int, adversarial_rounds: int, round_batch: int,
-                memory_batches: int, distill_epochs_per_round: int,
-                batch_size: int, device: str) -> tuple[list[Sample], list[float], GRUGenerator]:
-    """CSG -> GRU MLE -> REINFORCE hard-query mining -> listwise distillation.
-
-    A generated full sequence receives the terminal discrepancy reward from
-    Eq. 14. The cache holds earlier generated samples; the current round plus
-    cached samples forms the distillation input pool.
-    """
-    seed_samples, sequences = generate_sim4rec_seed(oracle, n_sequences=n_seed_sequences,
-                                                     sequence_len=sequence_len,
-                                                     n_items=n_items, rng=rng)
-    generator = GRUGenerator(n_items).to(device)
-    losses = pretrain_generator(generator, sequences, epochs=pretrain_epochs,
-                                batch_size=batch_size, device=device)
-    losses.append(distill_epoch(student, student_optimizer, seed_samples, "sim4rec",
-                                batch_size=batch_size, device=device, rng=rng))
-    generator_optimizer = torch.optim.Adam(generator.parameters(), lr=0.01, weight_decay=0.01)
-    bank = seed_samples.copy()
-    all_samples = seed_samples.copy()
-    for _ in range(adversarial_rounds):
-        generator.train()
-        generated, logp = generator.sample([rng.randint(1, n_items) for _ in range(round_batch)],
-                                           sequence_len, device)
-        oracle.counts.generated_sequences += round_batch
-        current: list[Sample] = []
-        _query(oracle, generated, current)
-        all_samples.extend(current)
-        student.eval()
-        with torch.no_grad():
-            tokens = torch.tensor([left_pad(s.prefix, student.max_len) for s in current], device=device)
-            rankings = torch.tensor([s.ranking for s in current], device=device)
-            negatives = negatives_outside_topk(rankings, n_items, rankings.size(1))
-            scores = student.next_scores(tokens)
-            # Individual terminal rewards, detached from the student.
-            ordered = scores.gather(1, torch.cat([rankings, negatives], 1))
-            rewards = torch.stack([torch.logsumexp(ordered[:, i:], 1) - ordered[:, i]
-                                   for i in range(rankings.size(1))], 1).sum(1).detach()
-        policy_loss = -(logp * (rewards - rewards.mean())).mean()
-        generator_optimizer.zero_grad(set_to_none=True)
-        policy_loss.backward()
-        generator_optimizer.step()
-        # Memory bank capacity Mbank * batch size, current batch always retained.
-        bank.extend(current)
-        bank = bank[-memory_batches * round_batch:]
-        for _ in range(distill_epochs_per_round):
-            losses.append(distill_epoch(student, student_optimizer, bank, "sim4rec",
-                                       batch_size=batch_size, device=device, rng=rng))
-    return all_samples, losses, generator

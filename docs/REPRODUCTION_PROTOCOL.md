@@ -2,11 +2,11 @@
 
 ## Research question and units
 
-Measure whether GRO changes a frozen SASRec teacher's extractability under DFME, BECOME, and Sim4Rec, while preserving recommendation utility. The current code uses the same ML-1M text file, split, SASRec architecture, and evaluation inputs for every matrix cell. GRO on SASRec is an adaptation of the WSDM 2024 method, whose original experiments used BERT4Rec.
+Measure whether GRO changes a frozen SASRec teacher's extractability under DFME and BECOME, while preserving recommendation utility. The current code uses the same ML-1M text file, split, SASRec architecture, and evaluation inputs for every matrix cell. GRO on SASRec is an adaptation of the WSDM 2024 method, whose original experiments used BERT4Rec.
 
 ## Two protocol layers
 
-**A. Paper-native verification.** Keep each paper's generation mechanism, ranking loss, nominal generated-sequence budget, training schedule, and evaluation protocol. DFME/BECOME/Sim4Rec use sampled 100-negative recommendation evaluation; GRO uses full ranking. This repository has the relevant loss and evaluation primitives but has **not** completed quantitative paper-native reproduction. The supplied preprocessed `ml-1m.txt` differs from the rating totals in the papers and lacks original timestamps. No paper-native numbers are claimed.
+**A. Paper-native verification.** Keep each implemented paper's generation mechanism, ranking loss, nominal generated-sequence budget, training schedule, and evaluation protocol. DFME/BECOME use sampled 100-negative recommendation evaluation; GRO uses full ranking. This repository has the relevant loss and evaluation primitives but has **not** completed quantitative paper-native reproduction. The supplied preprocessed `ml-1m.txt` differs from the rating totals in the papers and lacks original timestamps. No paper-native numbers are claimed.
 
 **B. Unified defense comparison.** All cells use `experiments/ml1m_sasrec.json` and a 20,000-actual-request cap. Clean and defended teachers start from the same architecture and clean checkpoint; the defended teacher is then fine-tuned with GRO. Each external attack uses a fresh SASRec student. The local GRO student is separate and is discarded after training. Every attack sees only ordered Top-100 item IDs, never scores or real user training histories. Method-specific losses and generators remain separate.
 
@@ -26,4 +26,4 @@ The sampled evaluation draws a deterministic 100 negative items per user outside
 
 ## Reproducibility record
 
-Result JSON includes dataset, backbone, seed, defense, attack, data/checkpoint/query-dataset hashes, budget definition and counts, teacher and student metrics, and wall-clock duration. Method-retained queries and rankings are exported as deterministic gzip JSONL. Teacher logs use JSONL. Teacher checkpoints save model, optimizer, epoch, random states, and local GRO student states. `--resume` resumes teacher training from the latest checkpoint. Attack generation/resume after interruption is currently incomplete and is listed in implementation status.
+Result JSON includes dataset, backbone, seed, defense, attack, data/configuration/checkpoint/query-dataset hashes, budget definition and counts, teacher and student metrics, and wall-clock duration. Method-retained queries and rankings are exported as deterministic gzip JSONL. Teacher logs use JSONL. Teacher checkpoints save model, optimizer, epoch, random states, and local GRO student states. `--resume` resumes teacher training from the latest checkpoint. Attack generation/resume after interruption is currently incomplete and is listed in implementation status.

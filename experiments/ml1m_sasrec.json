@@ -2,6 +2,7 @@
   "dataset": "ml-1m",
   "backbone": "sasrec",
   "data_path": "data/ml-1m.txt",
+  "expected_data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
   "run_root": "runs/ml1m_sasrec_seed42",
   "seed": 42,
   "model": {
@@ -57,17 +58,6 @@
       "margin_rank": 0.75,
       "margin_neg": 1.5,
       "beta": 0.5
-    },
-    "sim4rec": {
-      "n_seed_sequences": 80,
-      "sequence_len": 200,
-      "pretrain_epochs": 30,
-      "adversarial_rounds": 125,
-      "round_batch": 32,
-      "memory_batches": 100,
-      "epochs_per_round": 1,
-      "batch_size": 128,
-      "lr": 0.001
     }
   }
 }

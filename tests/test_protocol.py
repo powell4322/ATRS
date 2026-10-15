@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from atrs.api import BudgetExhausted, RankingOracle
-from atrs.attacks import Sample, listwise_loss, pairwise_loss
+from atrs.attacks import Sample, pairwise_loss
 from atrs.cli import _save_queries
 from atrs.data import load_split
 from atrs.evaluation import evaluate
@@ -59,17 +59,14 @@ def test_oracle_returns_only_ranked_ids_and_counts_cached_prefixes():
     assert oracle.counters()["oracle_requests"] == 2
 
 
-def test_distillation_losses_preserve_distinct_objectives():
+def test_distillation_losses_preserve_dfme_and_become_weighting():
     scores = torch.tensor([[0.0, 3.0, 2.0, 1.0, 0.0]], requires_grad=True)
     topk = torch.tensor([[1, 2]])
     negatives = torch.tensor([[3, 4]])
-    pair = pairwise_loss(scores, topk, negatives, 0.5, 0.5, beta=0.5)
-    assert torch.isclose(pair, torch.tensor(0.0))
-    listwise = listwise_loss(scores, topk, negatives)
-    expected = (torch.logsumexp(scores[0, [1, 2, 3, 4]], 0) - scores[0, 1]
-                + torch.logsumexp(scores[0, [2, 3, 4]], 0) - scores[0, 2])
-    assert torch.isclose(listwise, expected)
-    listwise.backward()
+    dfme = pairwise_loss(scores, topk, negatives, 0.5, 2.5)
+    become = pairwise_loss(scores, topk, negatives, 0.5, 2.5, beta=0.5)
+    assert torch.isclose(dfme, 2 * become)
+    become.backward()
     assert torch.isfinite(scores.grad).all()
 
 

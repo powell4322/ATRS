@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from .api import RankingOracle
-from .attacks import distill_epoch, generate_become, generate_dfme, run_sim4rec
+from .attacks import distill_epoch, generate_become, generate_dfme
 from .data import load_split
 from .evaluation import evaluate
 from .gro import gro_step
@@ -27,6 +27,7 @@ def _configuration(path: str) -> dict:
     config = json.loads(Path(path).read_text(encoding="utf-8"))
     if config["dataset"] != "ml-1m" or config["backbone"] != "sasrec":
         raise ValueError("phase I currently supports ML-1M + SASRec only")
+    config["_config_sha256"] = _identity(Path(path))
     return config
 
 
@@ -80,6 +81,9 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         payload = load_checkpoint(checkpoint, model=model, optimizer=optimizer,
                                   student=local_student, student_optimizer=local_optimizer,
                                   map_location=device)
+        if (payload["metadata"].get("data_sha256") != split.source_sha256
+                or payload["metadata"].get("config_sha256") != config["_config_sha256"]):
+            raise ValueError("checkpoint dataset or configuration differs from this run")
         start_epoch = payload["epoch"]
     elif defense != "none":
         clean = _checkpoint_path(run_root, "none")
@@ -88,6 +92,8 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         payload = load_checkpoint(clean, model=model, map_location=device)
         if payload["metadata"]["data_sha256"] != split.source_sha256:
             raise ValueError("clean checkpoint uses a different dataset")
+        if payload["metadata"].get("config_sha256") != config["_config_sha256"]:
+            raise ValueError("clean checkpoint uses a different configuration")
     windows = SASWindows(split, max_len=model.max_len, seed=seed,
                          sliding_fraction=settings["sliding_fraction"])
     if not windows:
@@ -134,10 +140,12 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                   "defense": defense, "seed": seed, "epoch": epoch + 1,
                   "loss": {key: value / steps for key, value in sums.items()},
                   "validation": validation, "seconds": time.perf_counter() - started,
-                  "data_sha256": split.source_sha256}
+                  "data_sha256": split.source_sha256,
+                  "config_sha256": config["_config_sha256"]}
         append_jsonl(run_root / "logs" / f"teacher_{defense}.jsonl", record)
         save_checkpoint(checkpoint, model=model, optimizer=optimizer, epoch=epoch + 1,
                         metadata={"defense": defense, "data_sha256": split.source_sha256,
+                                  "config_sha256": config["_config_sha256"],
                                   "validation_ndcg": validation["ndcg@10"]},
                         student=local_student, student_optimizer=local_optimizer)
         if validation["ndcg@10"] > best_ndcg:
@@ -145,6 +153,7 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
             stale_epochs = 0
             save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=epoch + 1,
                             metadata={"defense": defense, "data_sha256": split.source_sha256,
+                                      "config_sha256": config["_config_sha256"],
                                       "validation_ndcg": validation["ndcg@10"]},
                             student=local_student, student_optimizer=local_optimizer)
         else:
@@ -162,6 +171,8 @@ def _run_attack(config: dict, split, defense: str, attack: str,
     teacher_state = load_checkpoint(teacher_checkpoint, model=teacher, map_location=device)
     if teacher_state["metadata"]["data_sha256"] != split.source_sha256:
         raise ValueError("teacher checkpoint uses a different dataset")
+    if teacher_state["metadata"].get("config_sha256") != config["_config_sha256"]:
+        raise ValueError("teacher checkpoint uses a different configuration")
     teacher.eval()
     torch.manual_seed(config["seed"] + 2001)
     student = _model(config, split.n_items).to(device)
@@ -197,15 +208,6 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                                           batch_size=settings["batch_size"], device=device,
                                           margin_rank=settings["margin_rank"],
                                           margin_neg=settings["margin_neg"], beta=settings["beta"])
-    elif attack == "sim4rec":
-        samples, losses, generator = run_sim4rec(
-            oracle, student, optimizer, n_seed_sequences=settings["n_seed_sequences"],
-            sequence_len=settings["sequence_len"], n_items=split.n_items,
-            rng=rng, pretrain_epochs=settings["pretrain_epochs"],
-            adversarial_rounds=settings["adversarial_rounds"],
-            round_batch=settings["round_batch"], memory_batches=settings["memory_batches"],
-            distill_epochs_per_round=settings["epochs_per_round"],
-            batch_size=settings["batch_size"], device=device)
     else:
         raise ValueError(attack)
     query_path = run_root / "queries" / f"{defense}_{attack}.jsonl.gz"
@@ -214,6 +216,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
     save_checkpoint(out, model=student, optimizer=optimizer, epoch=len(losses),
                     metadata={"attack": attack, "defense": defense,
                               "data_sha256": split.source_sha256,
+                              "config_sha256": config["_config_sha256"],
                               "teacher_sha256": _identity(teacher_checkpoint),
                               "query_dataset_sha256": query_sha256,
                               "oracle_counts": oracle.counters()})
@@ -230,6 +233,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
               "student_checkpoint": str(out), "student_sha256": _identity(out),
               "query_dataset": str(query_path), "query_dataset_sha256": query_sha256,
               "data_sha256": split.source_sha256,
+              "config_sha256": config["_config_sha256"],
               "budget_definition": "actual unique prefix requests to ranking-only oracle",
               "query_counts": oracle.counters(), "teacher_full": teacher_metrics,
               "student_full": student_metrics, "student_sampled": sampled_metrics,
@@ -246,13 +250,16 @@ def main() -> None:
     parser.add_argument("command", choices=["preprocess", "train-teacher", "run-attack"])
     parser.add_argument("--config", default="experiments/ml1m_sasrec.json")
     parser.add_argument("--defense", choices=["none", "gro", "continued-clean"])
-    parser.add_argument("--attack", choices=["dfme", "become", "sim4rec"])
+    parser.add_argument("--attack", choices=["dfme", "become"])
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     config = _configuration(args.config)
     split = load_split(config["data_path"])
+    expected_hash = config.get("expected_data_sha256")
+    if expected_hash and split.source_sha256 != expected_hash:
+        raise ValueError(f"dataset SHA-256 mismatch: expected {expected_hash}, got {split.source_sha256}")
     root = Path(config["run_root"])
     split.save_metadata(root / "data_metadata.json")
     if args.command == "preprocess":
