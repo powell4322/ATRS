@@ -62,6 +62,10 @@ def load_complete_matrix(config: dict, config_hash: str, run_root: Path) -> list
         requests = result["query_counts"]["oracle_requests"]
         if not isinstance(requests, int) or not 0 < requests <= config["api"]["max_requests"]:
             raise ValueError(f"{path}: invalid oracle request count: {requests!r}")
+        counts = result["query_counts"]
+        if "requested_prefixes" in counts:
+            if counts["requested_prefixes"] != requests + counts["cache_hits"]:
+                raise ValueError(f"{path}: inconsistent query counts")
         if result["teacher_full"]["protocol"] != "full" or result["student_full"]["protocol"] != "full":
             raise ValueError(f"{path}: full-ranking protocol missing")
         if result["teacher_full"]["fold"] != "test" or result["student_full"]["fold"] != "test":
@@ -75,6 +79,10 @@ def load_complete_matrix(config: dict, config_hash: str, run_root: Path) -> list
         rows.append((path, result))
     if len(commits) != 1:
         raise ValueError(f"matrix spans multiple Git commits: {sorted(commits)}")
+    if any("clean_parent_sha256" in result for _, result in rows):
+        for path, result in rows:
+            if result["defense"] != "none" and result.get("clean_parent_sha256") != teacher_hashes["none"]:
+                raise ValueError(f"{path}: clean parent differs from the None teacher")
     return rows
 
 
@@ -104,7 +112,17 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
     (archive / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [
-        "# Phase I results: ML-1M / SASRec",
+        "# 23 Phase I results: ML-1M / SASRec",
+        "",
+        "<!-- doc-nav:start -->",
+        "[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 22](REPOSITORY_LAYOUT.md)",
+        "<!-- doc-nav:end -->",
+        "",
+        "<!-- doc-toc:start -->",
+        "**本页目录**",
+        "",
+        "- [Descriptive differences](#section-1)",
+        "<!-- doc-toc:end -->",
         "",
         "Status: complete six-cell server matrix; four primary comparisons and two continued-clean controls.",
         "",
@@ -130,6 +148,7 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
     indexed = {(result["defense"], result["attack"]): result for _, result in rows}
     lines += [
         "",
+        '<a id="section-1"></a>',
         "## Descriptive differences",
         "",
         "Each value is GRO minus the named comparator on the same attack. These are single-seed differences, not significance estimates.",

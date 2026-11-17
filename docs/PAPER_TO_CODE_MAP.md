@@ -1,4 +1,8 @@
-# Paper-to-code map
+# 05 Paper-to-code map
+
+<!-- doc-nav:start -->
+[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 04](RELATED_WORK.md) · [下一页 06](research/research_experiment_plan.md)
+<!-- doc-nav:end -->
 
 | Method | Paper and source checked | Main implementation | Fidelity assessment |
 |---|---|---|---|

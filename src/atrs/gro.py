@@ -28,9 +28,9 @@ def gro_step(teacher, student, teacher_optimizer, student_optimizer,
     student_optimizer.zero_grad(set_to_none=True)
     target_loss = teacher.bce_loss(tokens, positives, negatives)
     teacher_scores = teacher.next_scores(tokens)
-    k = min(topk, teacher.n_items - 1)
-    if k < 2:
-        raise ValueError("GRO needs at least two ranked items and one negative")
+    k = topk
+    if k < 2 or 2 * k > teacher.n_items:
+        raise ValueError("GRO needs k >= 2 and at least k items outside Top-K")
     ranking = torch.argsort(teacher_scores[:, 1:].detach(), dim=1,
                             descending=True, stable=True)[:, :k] + 1
     batch, n_items_plus_pad = teacher_scores.shape

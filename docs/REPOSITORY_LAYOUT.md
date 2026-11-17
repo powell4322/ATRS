@@ -1,4 +1,8 @@
-# Repository layout and result lifecycle
+# 22 Repository layout and result lifecycle
+
+<!-- doc-nav:start -->
+[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 21](WINDOWS_4090_RUN.md) · [下一页 23](RESULTS.md)
+<!-- doc-nav:end -->
 
 | Path | Purpose | Git policy |
 |---|---|---|
@@ -10,6 +14,7 @@
 | `runs/phase1/<experiment>/checkpoints/` | Teacher and student model/optimizer states | Ignore; keep on the compute server. |
 | `runs/phase1/<experiment>/queries/` | Labelled query records for auditing | Ignore; keep on the compute server. |
 | `runs/phase1/<experiment>/results/` | Direct JSON outputs from each attack cell | Ignore; exporter validates these before publication. |
+| `runs/research/<experiment>/` | T1–T5 resolved arguments, checkpoint provenance, query data, result JSON and diagnostics | Ignore; retain per-run evidence on the compute server. |
 | `result/phase1/<experiment>/` | Six validated metric JSON files and a provenance manifest | Track after a complete run and review. |
 | `docs/` | Protocol, source mapping, deviations, server commands, descriptive result tables and scientific interpretation | Track. |
 | `paper/` | Local paper PDFs | Ignore. |

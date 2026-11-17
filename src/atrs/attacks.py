@@ -35,18 +35,32 @@ def negatives_outside_topk(rankings: torch.Tensor, n_items: int, count: int) -> 
     return torch.multinomial(weights, count, replacement=False)
 
 
-def pairwise_loss(scores: torch.Tensor, rankings: torch.Tensor, negatives: torch.Tensor,
-                  margin_rank: float, margin_neg: float, beta: float | None = None) -> torch.Tensor:
-    """Adjacent-rank hinge plus top-k/negative hinge (DFME and BECOME)."""
+def pairwise_margins(scores: torch.Tensor, rankings: torch.Tensor, negatives: torch.Tensor,
+                     margin_rank: float, margin_neg: float) -> tuple[torch.Tensor, torch.Tensor]:
     positive = scores.gather(1, rankings)
     negative = scores.gather(1, negatives)
-    rank_loss = F.relu(positive[:, 1:] - positive[:, :-1] + margin_rank).mean()
+    rank = positive[:, 1:] - positive[:, :-1] + margin_rank
     # Paper Eq. 22 pairs j negatives per positive. Caller supplies j*k negatives.
     if negative.size(1) % positive.size(1) == 0:
         reference = positive.repeat_interleave(negative.size(1) // positive.size(1), dim=1)
     else:
         reference = positive[:, :1].expand_as(negative)
-    neg_loss = F.relu(negative - reference + margin_neg).mean()
+    return rank, negative - reference + margin_neg
+
+
+def pairwise_loss(scores: torch.Tensor, rankings: torch.Tensor, negatives: torch.Tensor,
+                  margin_rank: float, margin_neg: float, beta: float | None = None,
+                  *, component: str = "total") -> torch.Tensor:
+    """Adjacent-rank hinge plus top-k/negative hinge (DFME and BECOME)."""
+    rank, inter = pairwise_margins(scores, rankings, negatives, margin_rank, margin_neg)
+    rank_loss = F.relu(rank).mean() if rank.numel() else scores.sum() * 0
+    neg_loss = F.relu(inter).mean()
+    if component == "intra":
+        return rank_loss
+    if component == "inter":
+        return neg_loss
+    if component != "total":
+        raise ValueError(f"unknown loss component: {component}")
     return rank_loss + neg_loss if beta is None else beta * rank_loss + (1 - beta) * neg_loss
 
 
@@ -54,7 +68,7 @@ def distill_epoch(student: nn.Module, optimizer: torch.optim.Optimizer,
                   samples: list[Sample], method: str, *, batch_size: int,
                   device: str, rng: random.Random, margin_rank: float = 0.5,
                   margin_neg: float = 0.5, beta: float | None = None,
-                  negatives_per_positive: int = 1) -> float:
+                  negatives_per_positive: int = 1, component: str = "total") -> float:
     if not samples:
         raise ValueError("cannot distill an empty sample set")
     student.train()
@@ -69,7 +83,8 @@ def distill_epoch(student: nn.Module, optimizer: torch.optim.Optimizer,
                                       ranks.size(1) * negatives_per_positive)
         scores = student.next_scores(tokens)
         if method in {"dfme", "become"}:
-            loss = pairwise_loss(scores, ranks, negs, margin_rank, margin_neg, beta)
+            loss = pairwise_loss(scores, ranks, negs, margin_rank, margin_neg, beta,
+                                 component=component)
         else:
             raise ValueError(method)
         optimizer.zero_grad(set_to_none=True)
@@ -93,14 +108,19 @@ def _sample_uniform(rankings: list[list[int]], rng: random.Random) -> list[int]:
 
 
 def generate_dfme(oracle: RankingOracle, *, n_sequences: int, sequence_len: int,
-                  n_items: int, rng: random.Random, batch_size: int = 32) -> list[Sample]:
+                  n_items: int, rng: random.Random, batch_size: int = 32,
+                  initial_items: list[int] | None = None) -> list[Sample]:
     """DFME autoregressive generation and source-style T-1 prefix training."""
     if sequence_len < 2:
         raise ValueError("DFME requires sequence_len >= 2")
+    if initial_items is not None and len(initial_items) != n_sequences:
+        raise ValueError("initial_items must contain one item per sequence")
     samples: list[Sample] = []
     for start in range(0, n_sequences, batch_size):
         count = min(batch_size, n_sequences - start)
-        sequences = [[rng.randint(1, n_items)] for _ in range(count)]
+        seeds = ([rng.randint(1, n_items) for _ in range(count)] if initial_items is None
+                 else initial_items[start:start + count])
+        sequences = [[item] for item in seeds]
         oracle.counts.generated_sequences += count
         for step in range(sequence_len):
             prefixes = [tuple(seq) for seq in sequences]
@@ -187,7 +207,7 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
         with torch.no_grad():
             for i in range(n_sequences):
                 prefix = tuple(sequences[i])
-                ranking = oracle.predict_topk([prefix])[0]
+                ranking = oracle.predict_topk([prefix], feedback=True)[0]
                 feedback_rankings[i] = ranking
                 scores = student.next_scores(torch.tensor([left_pad(prefix, student.max_len)], device=device))
                 predicted = set((torch.argsort(scores[:, 1:], dim=-1, descending=True)[:, :oracle.k] + 1)[0].tolist())

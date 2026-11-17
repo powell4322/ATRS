@@ -1,4 +1,17 @@
-# Data protocol
+# 11 Data protocol
+
+<!-- doc-nav:start -->
+[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 10](REPRODUCTION_PROTOCOL.md) · [下一页 12](BASELINE_FAIRNESS.md)
+<!-- doc-nav:end -->
+
+<!-- doc-toc:start -->
+**本页目录**
+
+- [Supplied ML-1M text](#section-1)
+- [Split and candidates](#section-2)
+<!-- doc-toc:end -->
+
+<a id="section-1"></a>
 
 ## Supplied ML-1M text
 
@@ -17,6 +30,8 @@ Observed on 2026-10-15:
 | SHA-256 | `b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2` |
 
 The paper tables list approximately 1,000,209 ML-1M interactions. This local SASRec-format file has 598 fewer lines and no ratings or timestamps, so original filtering and tie ordering cannot be reconstructed from it alone. Absolute paper metrics should not be treated as direct reproduction targets.
+
+<a id="section-2"></a>
 
 ## Split and candidates
 

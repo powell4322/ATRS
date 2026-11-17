@@ -32,7 +32,8 @@ def test_results_are_published_only_for_a_consistent_complete_matrix(tmp_path):
             "defense": defense, "attack": attack, "git_commit": "f" * 40,
             "data_sha256": "a" * 64, "config_sha256": config_hash,
             "teacher_sha256": {"none": "b", "gro": "c", "continued-clean": "d"}[defense] * 64,
-            "query_counts": {"oracle_requests": 10},
+            "clean_parent_sha256": None if defense == "none" else "b" * 64,
+            "query_counts": {"oracle_requests": 10, "cache_hits": 2, "requested_prefixes": 12},
             "teacher_full": {"protocol": "full", "fold": "test", "hr@10": 0.3, "ndcg@10": 0.2},
             "student_full": {"protocol": "full", "fold": "test", "hr@10": 0.25,
                              "ndcg@10": 0.15, "agr@1": 0.1, "agr@10": 0.4},
@@ -46,10 +47,19 @@ def test_results_are_published_only_for_a_consistent_complete_matrix(tmp_path):
     published = report.read_text(encoding="utf-8")
     assert "Status: complete six-cell" in published
     assert "## Descriptive differences" in published
+    assert "# 23 Phase I results" in published
+    assert "[00 总索引](README.md)" in published
+    assert '[Descriptive differences](#section-1)' in published
+    assert '<a id="section-1"></a>' in published
     assert "../result/phase1/ml1m_sasrec_seed42/manifest.json" in published
 
     broken = source / "gro_dfme.json"
     result = json.loads(broken.read_text(encoding="utf-8"))
+    result["clean_parent_sha256"] = "0" * 64
+    broken.write_text(json.dumps(result), encoding="utf-8")
+    with pytest.raises(ValueError, match="clean parent differs"):
+        export_results.publish(config_path, report, archive)
+
     result["config_sha256"] = "0" * 64
     broken.write_text(json.dumps(result), encoding="utf-8")
     with pytest.raises(ValueError, match="configuration hash mismatch"):

@@ -31,12 +31,20 @@ def _configuration(path: str) -> dict:
     return config
 
 
+def _configured_split(config: dict):
+    split = load_split(config["data_path"])
+    expected_hash = config.get("expected_data_sha256")
+    if expected_hash and split.source_sha256 != expected_hash:
+        raise ValueError(f"dataset SHA-256 mismatch: expected {expected_hash}, got {split.source_sha256}")
+    return split
+
+
 def _model(config: dict, n_items: int) -> SASRec:
     return SASRec(n_items=n_items, **config["model"])
 
 
-def _checkpoint_path(root: Path, defense: str) -> Path:
-    return root / "checkpoints" / f"teacher_{defense}.pt"
+def _checkpoint_path(root: Path, defense: str, *, best: bool = False) -> Path:
+    return root / "checkpoints" / f"teacher_{defense}{'_best' if best else ''}.pt"
 
 
 def _identity(path: Path) -> str:
@@ -57,12 +65,29 @@ def _save_queries(path: Path, samples) -> str:
     return _identity(path)
 
 
+def _load_teacher(config, split, defense, run_root, device):
+    path = _checkpoint_path(run_root, defense, best=True)
+    if not path.is_file():
+        raise FileNotFoundError(f"train the {defense} teacher first: {path}")
+    model = _model(config, split.n_items).to(device)
+    state = load_checkpoint(path, model=model, restore_rng=False)
+    metadata = state["metadata"]
+    if (metadata.get("data_sha256") != split.source_sha256
+            or metadata.get("config_sha256") != config["_config_sha256"]):
+        raise ValueError(f"checkpoint dataset or configuration differs: {path}")
+    return model, path, state
+
+
 def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                  device: str, epochs_override: int | None, resume: bool) -> None:
     if defense not in {"none", "gro", "continued-clean"}:
         raise ValueError(defense)
     seed = config["seed"]
     set_seed(seed)
+    checkpoint = _checkpoint_path(run_root, defense)
+    best_path = _checkpoint_path(run_root, defense, best=True)
+    if not resume and (checkpoint.exists() or best_path.exists()):
+        raise FileExistsError(f"teacher outputs already exist: use --resume or a new run_root ({run_root})")
     model = _model(config, split.n_items).to(device)
     settings = config["training"]
     optimizer = source_adamw(model, lr=settings["lr"],
@@ -75,25 +100,26 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         local_optimizer = source_adamw(local_student, lr=settings["lr"],
                                        weight_decay=settings["weight_decay"])
         set_seed(seed)
-    checkpoint = _checkpoint_path(run_root, defense)
+    parent = {}
+    if defense != "none":
+        _, clean, clean_state = _load_teacher(config, split, "none", run_root, "cpu")
+        parent = {"clean_parent_sha256": _identity(clean), "clean_parent_epoch": clean_state["epoch"],
+                  "clean_parent_validation_ndcg": clean_state["metadata"].get("validation_ndcg")}
     start_epoch = 0
+    stale_epochs = 0
     if resume and checkpoint.exists():
         payload = load_checkpoint(checkpoint, model=model, optimizer=optimizer,
-                                  student=local_student, student_optimizer=local_optimizer,
-                                  map_location=device)
+                                  student=local_student, student_optimizer=local_optimizer)
         if (payload["metadata"].get("data_sha256") != split.source_sha256
                 or payload["metadata"].get("config_sha256") != config["_config_sha256"]):
             raise ValueError("checkpoint dataset or configuration differs from this run")
+        if parent and payload["metadata"].get("clean_parent_sha256") != parent["clean_parent_sha256"]:
+            raise ValueError("fine-tuning checkpoint has a different or unrecorded clean parent; use a new run_root")
         start_epoch = payload["epoch"]
+        stale_epochs = payload["metadata"].get("stale_epochs", 0)
     elif defense != "none":
-        clean = _checkpoint_path(run_root, "none")
-        if not clean.exists():
-            raise FileNotFoundError(f"train the clean teacher first: {clean}")
-        payload = load_checkpoint(clean, model=model, map_location=device)
-        if payload["metadata"]["data_sha256"] != split.source_sha256:
-            raise ValueError("clean checkpoint uses a different dataset")
-        if payload["metadata"].get("config_sha256") != config["_config_sha256"]:
-            raise ValueError("clean checkpoint uses a different configuration")
+        model.load_state_dict(clean_state["model"])
+        set_seed(seed)
     windows = SASWindows(split, max_len=model.max_len, seed=seed,
                          sliding_fraction=settings["sliding_fraction"])
     if not windows:
@@ -101,12 +127,17 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
     count_epochs = epochs_override if epochs_override is not None else (
         settings["clean_epochs"] if defense == "none" else settings["finetune_epochs"])
     best_ndcg = -1.0
-    best_path = checkpoint.with_name(checkpoint.stem + "_best.pt")
-    if resume and best_path.exists():
+    if start_epoch and best_path.exists():
         best_payload = torch.load(best_path, map_location="cpu", weights_only=False)
         best_ndcg = best_payload.get("metadata", {}).get("validation_ndcg", -1.0)
-    stale_epochs = 0
+    if start_epoch and payload["metadata"].get("validation_ndcg", -1.0) > best_ndcg:
+        # Recover when the previous process saved latest and stopped before publishing best.
+        best_ndcg = payload["metadata"]["validation_ndcg"]
+        save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=start_epoch,
+                        metadata=payload["metadata"], student=local_student, student_optimizer=local_optimizer)
     for epoch in range(start_epoch, count_epochs):
+        if stale_epochs >= settings["patience"]:
+            break
         windows.epoch = epoch
         loader = DataLoader(windows, batch_size=settings["batch_size"], shuffle=True,
                             num_workers=0)
@@ -142,43 +173,46 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                   "loss": {key: value / steps for key, value in sums.items()},
                   "validation": validation, "seconds": time.perf_counter() - started,
                   "data_sha256": split.source_sha256,
-                  "config_sha256": config["_config_sha256"]}
+                  "config_sha256": config["_config_sha256"], "training_steps": steps, **parent}
         append_jsonl(run_root / "logs" / f"teacher_{defense}.jsonl", record)
-        save_checkpoint(checkpoint, model=model, optimizer=optimizer, epoch=epoch + 1,
-                        metadata={"defense": defense, "data_sha256": split.source_sha256,
-                                  "config_sha256": config["_config_sha256"],
-                                  "validation_ndcg": validation["ndcg@10"]},
-                        student=local_student, student_optimizer=local_optimizer)
-        if validation["ndcg@10"] > best_ndcg:
+        improved = validation["ndcg@10"] > best_ndcg
+        if improved:
             best_ndcg = validation["ndcg@10"]
             stale_epochs = 0
-            save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=epoch + 1,
-                            metadata={"defense": defense, "data_sha256": split.source_sha256,
-                                      "config_sha256": config["_config_sha256"],
-                                      "validation_ndcg": validation["ndcg@10"]},
-                            student=local_student, student_optimizer=local_optimizer)
         else:
             stale_epochs += 1
+        metadata = {"defense": defense, "data_sha256": split.source_sha256,
+                    "config_sha256": config["_config_sha256"],
+                    "validation_ndcg": validation["ndcg@10"], "stale_epochs": stale_epochs,
+                    "training_steps": (epoch + 1) * steps, **parent}
+        save_checkpoint(checkpoint, model=model, optimizer=optimizer, epoch=epoch + 1,
+                        metadata=metadata, student=local_student, student_optimizer=local_optimizer)
+        if improved:
+            save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=epoch + 1,
+                            metadata=metadata, student=local_student, student_optimizer=local_optimizer)
         print(json.dumps(record, ensure_ascii=False))
-        if stale_epochs >= settings["patience"]:
-            break
 
 
 def _run_attack(config: dict, split, defense: str, attack: str,
                 run_root: Path, device: str) -> None:
     set_seed(config["seed"])
-    teacher_checkpoint = _checkpoint_path(run_root, defense).with_name(f"teacher_{defense}_best.pt")
-    teacher = _model(config, split.n_items).to(device)
-    teacher_state = load_checkpoint(teacher_checkpoint, model=teacher, map_location=device)
-    if teacher_state["metadata"]["data_sha256"] != split.source_sha256:
-        raise ValueError("teacher checkpoint uses a different dataset")
-    if teacher_state["metadata"].get("config_sha256") != config["_config_sha256"]:
-        raise ValueError("teacher checkpoint uses a different configuration")
+    teacher, teacher_checkpoint, teacher_state = _load_teacher(config, split, defense, run_root, device)
+    teacher_sha256 = _identity(teacher_checkpoint)
+    clean_parent_sha256 = teacher_state["metadata"].get("clean_parent_sha256")
+    if defense != "none" and clean_parent_sha256 != _identity(_checkpoint_path(run_root, "none", best=True)):
+        raise ValueError("defended teacher has a different or unrecorded clean parent")
     teacher.eval()
     torch.manual_seed(config["seed"] + 2001)
     student = _model(config, split.n_items).to(device)
     optimizer = source_adamw(student, lr=config["attacks"][attack]["lr"],
                              weight_decay=config["training"]["weight_decay"])
+    training_steps = 0
+
+    def count_step(*_):
+        nonlocal training_steps
+        training_steps += 1
+
+    handle = optimizer.register_step_post_hook(count_step)
     api = config["api"]
     oracle = RankingOracle(teacher, k=api["topk"],
                            max_requests=api["max_requests"],
@@ -211,6 +245,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                                           margin_neg=settings["margin_neg"], beta=settings["beta"])
     else:
         raise ValueError(attack)
+    handle.remove()
     query_path = run_root / "queries" / f"{defense}_{attack}.jsonl.gz"
     query_sha256 = _save_queries(query_path, samples)
     out = run_root / "checkpoints" / f"student_{defense}_{attack}.pt"
@@ -218,7 +253,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                     metadata={"attack": attack, "defense": defense,
                               "data_sha256": split.source_sha256,
                               "config_sha256": config["_config_sha256"],
-                              "teacher_sha256": _identity(teacher_checkpoint),
+                              "teacher_sha256": teacher_sha256,
                               "query_dataset_sha256": query_sha256,
                               "oracle_counts": oracle.counters()})
     teacher_metrics = evaluate(teacher, split, mode="full", teacher=None,
@@ -231,7 +266,9 @@ def _run_attack(config: dict, split, defense: str, attack: str,
               "defense": defense, "attack": attack, "seed": config["seed"],
               "git_commit": git_commit(),
               "teacher_checkpoint": str(teacher_checkpoint),
-              "teacher_sha256": _identity(teacher_checkpoint),
+              "teacher_sha256": teacher_sha256, "teacher_epoch": teacher_state["epoch"],
+              "teacher_training_steps": teacher_state["metadata"].get("training_steps"),
+              "clean_parent_sha256": clean_parent_sha256,
               "student_checkpoint": str(out), "student_sha256": _identity(out),
               "query_dataset": str(query_path), "query_dataset_sha256": query_sha256,
               "data_sha256": split.source_sha256,
@@ -239,6 +276,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
               "budget_definition": "actual unique prefix requests to ranking-only oracle",
               "query_counts": oracle.counters(), "teacher_full": teacher_metrics,
               "student_full": student_metrics, "student_sampled": sampled_metrics,
+              "training_steps": training_steps, "distillation_loss_by_epoch": losses,
               "last_distillation_loss": losses[-1] if losses else None,
               "seconds": time.perf_counter() - start}
     path = run_root / "results" / f"{defense}_{attack}.json"
@@ -257,22 +295,27 @@ def main() -> None:
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
+    if args.epochs is not None and args.epochs < 1:
+        parser.error("--epochs must be positive")
+    if args.command != "train-teacher" and (args.epochs is not None or args.resume):
+        parser.error("--epochs and --resume apply to train-teacher only")
+    if args.command != "run-attack" and args.attack is not None:
+        parser.error("--attack applies to run-attack only")
+    if args.command == "preprocess" and args.defense is not None:
+        parser.error("--defense does not apply to preprocess")
+    if args.command != "preprocess" and args.defense is None:
+        parser.error("--defense is required")
+    if args.command == "run-attack" and args.attack is None:
+        parser.error("--attack is required")
     config = _configuration(args.config)
-    split = load_split(config["data_path"])
-    expected_hash = config.get("expected_data_sha256")
-    if expected_hash and split.source_sha256 != expected_hash:
-        raise ValueError(f"dataset SHA-256 mismatch: expected {expected_hash}, got {split.source_sha256}")
+    split = _configured_split(config)
     root = Path(config["run_root"])
     split.save_metadata(root / "data_metadata.json")
     if args.command == "preprocess":
         print(json.dumps(split.metadata(), indent=2))
     elif args.command == "train-teacher":
-        if args.defense is None:
-            parser.error("--defense is required")
         _fit_teacher(config, split, args.defense, root, args.device, args.epochs, args.resume)
     else:
-        if args.defense is None or args.attack is None:
-            parser.error("--defense and --attack are required")
         _run_attack(config, split, args.defense, args.attack, root, args.device)
 
 

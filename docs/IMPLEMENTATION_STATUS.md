@@ -1,4 +1,16 @@
-# Implementation status (2026-10-15)
+# 16 Implementation status (2026-10-15)
+
+<!-- doc-nav:start -->
+[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 15](audits/protocol_audit.md) · [下一页 17](research/theory_validation_report.md)
+<!-- doc-nav:end -->
+
+<!-- doc-toc:start -->
+**本页目录**
+
+- [Executed checks](#section-1)
+<!-- doc-toc:end -->
+
+The [current repository audit](audits/repository_audit.md) and [verification report](research/theory_validation_report.md) cover subsequent checkpoint, accounting and evaluation fixes, plus the T1–T5 diagnostic entry points.
 
 | Component | Current status |
 |---|---|
@@ -12,6 +24,8 @@
 | Checkpoints, resume, logs and result publication | Teacher model/optimizer/local-student checkpointing, teacher resume, JSONL logs and compressed labelled-query export implemented. A complete six-cell matrix is validated into versioned `result/` JSON and `docs/RESULTS.md` analysis. Mid-attack resume and a CLI for controlled query-dataset reuse remain incomplete. |
 | Formal ML-1M/SASRec run | **Not executed. No research metrics available.** Local work is for research and code; the user will run the formal matrix on a CUDA server. The launchers cover four primary and two continued-clean control cells. |
 
+<a id="section-1"></a>
+
 ## Executed checks
 
 ```powershell
@@ -21,7 +35,7 @@
 & .venv\Scripts\python.exe -m atrs.cli preprocess --config configs/phase1/ml1m_sasrec_seed42.json
 ```
 
-Five deterministic unit tests passed, as did the smoke script covering one teacher forward/backward, API request, DFME/BECOME minimal generation and distillation, GRO update, evaluation, and checkpoint save/load. These checks establish software execution, not empirical defense effectiveness.
+The original test suite and smoke script passed. The current suite adds cache accounting, per-user candidate counts, common checkpoint parent validation and an explicit intra-hinge cancellation test. See the [current verification report](research/theory_validation_report.md) for the latest checks.
 
 The supplied ML-1M file also passed a single real-data SASRec forward/backward check at the configured 400-token length (2 windows from 7,068 training windows, finite loss and embedding gradients). This was one batch, not an epoch or a utility measurement.
 

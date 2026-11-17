@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import random
 import subprocess
+from tempfile import NamedTemporaryFile
 from pathlib import Path
 
 import torch
@@ -95,11 +96,18 @@ def save_checkpoint(path: str | Path, *, model, optimizer, epoch: int,
         payload["student"] = student.state_dict()
     if student_optimizer is not None:
         payload["student_optimizer"] = student_optimizer.state_dict()
-    torch.save(payload, path)
+    with NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        torch.save(payload, temporary)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def load_checkpoint(path: str | Path, *, model, optimizer=None,
-                    student=None, student_optimizer=None, map_location="cpu") -> dict:
+                    student=None, student_optimizer=None, map_location="cpu",
+                    restore_rng: bool = True) -> dict:
     payload = torch.load(path, map_location=map_location, weights_only=False)
     if payload["model_config"] != model.config():
         raise ValueError("model configuration differs from checkpoint")
@@ -110,12 +118,13 @@ def load_checkpoint(path: str | Path, *, model, optimizer=None,
         student.load_state_dict(payload["student"])
     if student_optimizer is not None:
         student_optimizer.load_state_dict(payload["student_optimizer"])
-    if "torch_rng" in payload:
-        torch.set_rng_state(payload["torch_rng"])
-    if "cuda_rng" in payload and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(payload["cuda_rng"])
-    if "python_rng" in payload:
-        random.setstate(payload["python_rng"])
+    if restore_rng:
+        if "torch_rng" in payload:
+            torch.set_rng_state(payload["torch_rng"].cpu())
+        if "cuda_rng" in payload and torch.cuda.is_available():
+            torch.cuda.set_rng_state_all([state.cpu() for state in payload["cuda_rng"]])
+        if "python_rng" in payload:
+            random.setstate(payload["python_rng"])
     return payload
 
 

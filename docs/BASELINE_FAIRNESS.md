@@ -1,4 +1,17 @@
-# Baseline fairness and attack selection
+# 12 Baseline fairness and attack selection
+
+<!-- doc-nav:start -->
+[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 11](DATA_PROTOCOL.md) · [下一页 13](KNOWN_DEVIATIONS.md)
+<!-- doc-nav:end -->
+
+<!-- doc-toc:start -->
+**本页目录**
+
+- [Main comparison](#section-1)
+- [Utility and budget controls](#section-2)
+<!-- doc-toc:end -->
+
+<a id="section-1"></a>
 
 ## Main comparison
 
@@ -10,6 +23,8 @@ The primary question is the effect of the **same GRO training procedure** on eac
 | BECOME | 166 sequences, 40 initial prefixes, four feedback phases selecting 83 sequences each | weighted adjacent ranking + negative hinge | 19,920 |
 
 These are **unified engineering settings**, not paper-native budgets. Cache collisions can reduce actual request counts. Each result records actual requests, unique prefixes, batched forwards, generated sequences, and retained samples. Report extraction utility and agreement against actual counts, and do not claim strict equal-budget superiority if actual counts differ materially. A query-matched performance curve would be stronger than one endpoint; this is still pending.
+
+<a id="section-2"></a>
 
 ## Utility and budget controls
 

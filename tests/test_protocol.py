@@ -54,9 +54,20 @@ def test_oracle_returns_only_ranked_ids_and_counts_cached_prefixes():
     assert teacher.forwards == 1
     assert oracle.predict_topk([[2]]) == [[6, 5, 4]]
     assert oracle.counters()["cache_hits"] == 2
+    assert oracle.counters()["requested_prefixes"] == 4
     with pytest.raises(BudgetExhausted):
         oracle.predict_topk([[3]])
     assert oracle.counters()["oracle_requests"] == 2
+
+
+def test_uncached_queries_count_each_request_and_unique_prefixes_accumulate():
+    oracle = RankingOracle(DeterministicTeacher(), k=3, cache=False, max_requests=4)
+    oracle.predict_topk([[1], [2], [1]])
+    oracle.predict_topk([[3]], feedback=True)
+    counts = oracle.counters()
+    assert counts["unique_queried_prefixes"] == 3
+    assert counts["requested_prefixes"] == counts["oracle_requests"] == 4
+    assert counts["feedback_prefixes"] == counts["feedback_oracle_requests"] == 1
 
 
 def test_distillation_losses_preserve_dfme_and_become_weighting():
@@ -70,6 +81,21 @@ def test_distillation_losses_preserve_dfme_and_become_weighting():
     assert torch.isfinite(scores.grad).all()
 
 
+def test_dfme_intra_gradient_cancels_for_internal_swap_when_all_hinges_active():
+    scores = torch.tensor([[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]], requires_grad=True)
+    clean = torch.tensor([[1, 2, 3, 4]])
+    edited = torch.tensor([[1, 3, 2, 4]])
+    negatives = torch.tensor([[5, 6, 7, 8]])
+    gradients = []
+    for ranks in (clean, edited):
+        loss = pairwise_loss(scores, ranks, negatives, 1.0, 1.0, component="intra")
+        gradients.append(torch.autograd.grad(loss, scores)[0])
+    expected = torch.zeros_like(scores)
+    expected[0, 1], expected[0, 4] = -1 / 3, 1 / 3
+    torch.testing.assert_close(gradients[0], expected)
+    torch.testing.assert_close(gradients[1], expected)
+
+
 def test_full_ranking_filters_seen_items_for_both_models(tmp_path):
     source = tmp_path / "data.txt"
     source.write_text("1 1\n1 2\n1 3\n1 4\n1 5\n2 2\n2 3\n2 4\n2 5\n2 6\n", encoding="utf-8")
@@ -80,6 +106,16 @@ def test_full_ranking_filters_seen_items_for_both_models(tmp_path):
     assert result["agr@1"] == 1.0
     assert result["agr@10"] == 1.0
     assert math.isfinite(result["ndcg@10"])
+
+
+def test_full_ranking_handles_different_candidate_counts_in_the_same_batch(tmp_path):
+    source = tmp_path / "data.txt"
+    source.write_text("1 1\n1 2\n1 3\n1 4\n1 5\n1 6\n2 1\n2 2\n2 3\n", encoding="utf-8")
+    split = load_split(source)
+    model = DeterministicTeacher()
+    metrics = evaluate(model, split, mode="full", teacher=model, batch_size=2)
+    assert metrics == evaluate(model, split, mode="full", teacher=model, batch_size=1)
+    assert metrics["hr@10"] == metrics["agr@10"] == 1.0
 
 
 def test_exported_query_dataset_has_stable_checksum(tmp_path):

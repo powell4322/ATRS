@@ -2,6 +2,10 @@
 
 SASRec-first benchmark for DFME/BECOME model extraction and GRO defense. The checked-in code is independently implemented from the papers. The supplied ML-1M, Steam and Beauty text files are tracked under `data/`; paper PDFs remain local under `paper/`.
 
+See the [research document index](docs/README.md) for theory, candidate contributions, related work, protocol audits and Schemes A/B/C. On MatPool, follow the [staged Linux runbook](docs/MATPOOL_RUN.md) to verify clean SASRec + DFME and run the T1–T5 diagnostic entry points.
+
+Start review at [01 protocol, metrics, models and parameter decisions](docs/REVIEW_DECISIONS.md). Follow [20 Git synchronization](docs/GIT_WORKFLOW.md) for local/cloud edits and measured-result publication. All research documents have numbered navigation in [00 the document index](docs/README.md).
+
 ## Scope
 
 - ML-1M chronological leave-one-out; clean and GRO-fine-tuned SASRec teachers.

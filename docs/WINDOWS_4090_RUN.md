@@ -1,6 +1,19 @@
-# Windows RTX 4090 server run (CMD)
+# 21 Windows RTX 4090 server run (CMD)
+
+<!-- doc-nav:start -->
+[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 20](GIT_WORKFLOW.md) · [下一页 22](REPOSITORY_LAYOUT.md)
+<!-- doc-nav:end -->
+
+<!-- doc-toc:start -->
+**本页目录**
+
+- [First checkout and environment](#section-1)
+- [Formal run](#section-2)
+<!-- doc-toc:end -->
 
 Run these commands in **Windows Command Prompt (`cmd.exe`)**. Python 3.11, Git, and an NVIDIA driver must already be available. The example PyTorch wheel is **2.13.0 with CUDA 12.6**, listed by the [official PyTorch installation instructions](https://pytorch.org/get-started/previous-versions/). If the server driver cannot use that wheel, choose a supported CUDA build from the [PyTorch selector](https://pytorch.org/get-started/locally/) before proceeding. The CUDA check below must succeed.
+
+<a id="section-1"></a>
 
 ## First checkout and environment
 
@@ -27,6 +40,8 @@ certutil -hashfile data\ml-1m.txt SHA256
 
 The expected data SHA-256 is `b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2`. `preprocess` stops on a mismatch. Smoke checks software execution only.
 
+<a id="section-2"></a>
+
 ## Formal run
 
 ```bat
@@ -42,7 +57,7 @@ git pull --ff-only origin main
 .venv\Scripts\python.exe -m pip install -e ".[test]"
 ```
 
-The launcher starts attack cells from scratch and can overwrite result files if run again. Teacher jobs support the CLI's `--resume` flag when invoked individually; see [experiment plan](EXPERIMENT_PLAN.md). Keep the Git commit, configuration hash and data hash recorded in each run's result files with the server outputs.
+The launcher starts a fresh matrix. Resume an interrupted teacher job with an individual CLI call and `--resume`. Restart interrupted attack cells from scratch. See the [experiment plan](EXPERIMENT_PLAN.md) for individual cell arguments. Keep the Git commit, configuration hash and data hash with the server outputs.
 
 After reviewing the generated results, publish the research summary, six machine-readable result files and provenance manifest from the server checkout:
 

@@ -46,10 +46,11 @@ def evaluate(model, split: Split, *, mode: str, fold: str = "test",
                 masks[row, [target, *negatives]] = True
         tokens = torch.tensor([left_pad(history, model.max_len) for history in histories], device=device)
         scores = model.next_scores(tokens).masked_fill(~masks, -torch.inf)
-        k = min(10, int(masks.sum(dim=1).min()))
+        k = min(10, split.n_items)
         ranked = torch.argsort(scores, dim=1, descending=True, stable=True)[:, :k]
+        valid_ranks = masks.gather(1, ranked)
         target_tensor = torch.tensor(targets, device=device).unsqueeze(1)
-        hits = ranked.eq(target_tensor)
+        hits = ranked.eq(target_tensor) & valid_ranks
         totals["hr@10"] += float(hits.any(dim=1).sum())
         positions = torch.arange(k, device=device) + 2
         totals["ndcg@10"] += float((hits / torch.log2(positions)).sum())
@@ -58,8 +59,8 @@ def evaluate(model, split: Split, *, mode: str, fold: str = "test",
             teacher_scores = teacher.next_scores(teacher_tokens).masked_fill(~masks, -torch.inf)
             teacher_ranked = torch.argsort(teacher_scores, dim=1, descending=True, stable=True)[:, :k]
             totals["agr@1"] += float(ranked[:, 0].eq(teacher_ranked[:, 0]).sum())
-            overlap = ranked.unsqueeze(2).eq(teacher_ranked.unsqueeze(1)).any(dim=2).sum(dim=1)
-            totals["agr@10"] += float((overlap / k).sum())
+            overlap = ranked.unsqueeze(2).eq(teacher_ranked.unsqueeze(1)).any(dim=2)
+            totals["agr@10"] += float(((overlap & valid_ranks).sum(1) / valid_ranks.sum(1)).sum())
     result = {key: value / len(split.users) for key, value in totals.items()}
     if teacher is None:
         result.pop("agr@1")
