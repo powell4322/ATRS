@@ -14,19 +14,32 @@ import torch
 from torch.utils.data import DataLoader
 
 from .api import RankingOracle
-from .attacks import distill_epoch, generate_become, generate_dfme
+from .attacks import distill_epoch, generate_become, generate_dfme, generate_random
 from .data import load_split
 from .evaluation import evaluate
 from .gro import gro_step
 from .model import SASRec
 from .training import (SASWindows, append_jsonl, git_commit, load_checkpoint,
-                       save_checkpoint, set_seed, source_adamw)
+                       linear_warmup_decay, save_checkpoint, set_seed, source_optimizer)
 
 
 def _configuration(path: str) -> dict:
     config = json.loads(Path(path).read_text(encoding="utf-8"))
     if config["dataset"] != "ml-1m" or config["backbone"] != "sasrec":
-        raise ValueError("phase I currently supports ML-1M + SASRec only")
+        raise ValueError("the current runnable model/data entry supports ML-1M + SASRec")
+    if config.get("protocol") == "unified-defense-v1":
+        if (config["api"]["topk"] != 100 or config["evaluation"]["mode"] != "full"
+                or config["evaluation"]["agreement_reference"] != "clean"
+                or config["evaluation"]["history_filter"] != "exclude_seen_restore_target"
+                or config["evaluation"]["k"] != 10):
+            raise ValueError("formal protocol requires Top-100, full ranking and clean-reference Agreement")
+        if any(settings["n_sequences"] < 1 for settings in config["attacks"].values()):
+            raise ValueError("nominal sequence budgets must be positive")
+        if config["attacks"]["become"].get("scheduler", "constant") != "constant":
+            raise ValueError("the implemented BECOME phase loop supports its constant scheduler")
+        for attack in ("random", "dfme"):
+            if config["attacks"][attack].get("scheduler", "constant") not in {"constant", "linear_warmup_decay"}:
+                raise ValueError(f"unsupported scheduler for {attack}")
     config["_config_sha256"] = _identity(Path(path))
     return config
 
@@ -90,15 +103,16 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         raise FileExistsError(f"teacher outputs already exist: use --resume or a new run_root ({run_root})")
     model = _model(config, split.n_items).to(device)
     settings = config["training"]
-    optimizer = source_adamw(model, lr=settings["lr"],
-                             weight_decay=settings["weight_decay"])
+    optimizer = source_optimizer(model, lr=settings["lr"], weight_decay=settings["weight_decay"],
+                                 name=settings.get("optimizer", "adamw"))
     local_student = None
     local_optimizer = None
     if defense == "gro":
         torch.manual_seed(seed + 1001)
         local_student = _model(config, split.n_items).to(device)
-        local_optimizer = source_adamw(local_student, lr=settings["lr"],
-                                       weight_decay=settings["weight_decay"])
+        local_optimizer = source_optimizer(local_student, lr=settings["lr"],
+                                           weight_decay=settings["weight_decay"],
+                                           name=settings.get("optimizer", "adamw"))
         set_seed(seed)
     parent = {}
     if defense != "none":
@@ -126,6 +140,19 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         raise ValueError("dataset has no training windows")
     count_epochs = epochs_override if epochs_override is not None else (
         settings["clean_epochs"] if defense == "none" else settings["finetune_epochs"])
+    scheduler = None
+    scheduler_name = (settings.get("scheduler", "constant") if defense == "none"
+                      else settings.get("finetune_scheduler", "constant"))
+    warmup_steps = (settings.get("warmup_steps", 0) if defense == "none"
+                    else settings.get("finetune_warmup_steps", 0))
+    if scheduler_name == "linear_warmup_decay":
+        total_steps = count_epochs * ((len(windows) + settings["batch_size"] - 1) // settings["batch_size"])
+        scheduler = linear_warmup_decay(optimizer, warmup_steps=warmup_steps,
+                                        total_steps=total_steps)
+        if start_epoch:
+            scheduler.load_state_dict(payload["scheduler"])
+            for group, lr in zip(optimizer.param_groups, scheduler.get_last_lr()):
+                group["lr"] = lr
     best_ndcg = -1.0
     if start_epoch and best_path.exists():
         best_payload = torch.load(best_path, map_location="cpu", weights_only=False)
@@ -134,9 +161,10 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         # Recover when the previous process saved latest and stopped before publishing best.
         best_ndcg = payload["metadata"]["validation_ndcg"]
         save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=start_epoch,
-                        metadata=payload["metadata"], student=local_student, student_optimizer=local_optimizer)
+                        metadata=payload["metadata"], student=local_student, student_optimizer=local_optimizer,
+                        scheduler=scheduler)
     for epoch in range(start_epoch, count_epochs):
-        if stale_epochs >= settings["patience"]:
+        if settings["patience"] is not None and stale_epochs >= settings["patience"]:
             break
         windows.epoch = epoch
         loader = DataLoader(windows, batch_size=settings["batch_size"], shuffle=True,
@@ -153,7 +181,8 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                                   margin_rank=config["gro"]["margin_rank"],
                                   margin_neg=config["gro"]["margin_neg"],
                                   margin_swap=config["gro"]["margin_swap"],
-                                  swap_weight=config["gro"]["swap_weight"])
+                                  swap_weight=config["gro"]["swap_weight"],
+                                  loss_normalization=config["gro"].get("loss_normalization", "mean"))
             else:
                 model.train()
                 optimizer.zero_grad(set_to_none=True)
@@ -162,6 +191,8 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
                 optimizer.step()
                 values = {"total": float(loss.detach())}
+            if scheduler is not None:
+                scheduler.step()
             for key, value in values.items():
                 sums[key] = sums.get(key, 0) + value
             steps += 1
@@ -186,10 +217,12 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
                     "validation_ndcg": validation["ndcg@10"], "stale_epochs": stale_epochs,
                     "training_steps": (epoch + 1) * steps, **parent}
         save_checkpoint(checkpoint, model=model, optimizer=optimizer, epoch=epoch + 1,
-                        metadata=metadata, student=local_student, student_optimizer=local_optimizer)
+                        metadata=metadata, student=local_student, student_optimizer=local_optimizer,
+                        scheduler=scheduler)
         if improved:
             save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=epoch + 1,
-                            metadata=metadata, student=local_student, student_optimizer=local_optimizer)
+                            metadata=metadata, student=local_student, student_optimizer=local_optimizer,
+                            scheduler=scheduler)
         print(json.dumps(record, ensure_ascii=False))
 
 
@@ -202,10 +235,15 @@ def _run_attack(config: dict, split, defense: str, attack: str,
     if defense != "none" and clean_parent_sha256 != _identity(_checkpoint_path(run_root, "none", best=True)):
         raise ValueError("defended teacher has a different or unrecorded clean parent")
     teacher.eval()
+    reference, reference_checkpoint, _ = _load_teacher(config, split, "none", run_root, device)
+    reference_sha256 = _identity(reference_checkpoint)
+    formal = config.get("protocol") == "unified-defense-v1"
+    settings = config["attacks"][attack]
     torch.manual_seed(config["seed"] + 2001)
     student = _model(config, split.n_items).to(device)
-    optimizer = source_adamw(student, lr=config["attacks"][attack]["lr"],
-                             weight_decay=config["training"]["weight_decay"])
+    optimizer = source_optimizer(student, lr=settings["lr"],
+                                 weight_decay=config["training"]["weight_decay"],
+                                 name=settings.get("optimizer", config["training"].get("optimizer", "adamw")))
     training_steps = 0
 
     def count_step(*_):
@@ -216,19 +254,26 @@ def _run_attack(config: dict, split, defense: str, attack: str,
     api = config["api"]
     oracle = RankingOracle(teacher, k=api["topk"],
                            max_requests=api["max_requests"],
-                           batch_size=api["batch_size"], device=device)
-    settings = config["attacks"][attack]
+                           batch_size=api["batch_size"], cache=api.get("cache", True), device=device)
     rng = random.Random(config["seed"] + 3001)
     start = time.perf_counter()
-    if attack == "dfme":
-        samples = generate_dfme(oracle, n_sequences=settings["n_sequences"],
+    if attack in {"random", "dfme"}:
+        generator = generate_random if attack == "random" else generate_dfme
+        samples = generator(oracle, n_sequences=settings["n_sequences"],
                                 sequence_len=settings["sequence_len"],
                                 n_items=split.n_items, rng=rng,
                                 batch_size=settings["generation_batch_size"])
-        losses = [distill_epoch(student, optimizer, samples, "dfme",
+        scheduler = None
+        if settings.get("scheduler") == "linear_warmup_decay":
+            total_steps = settings["epochs"] * ((len(samples) + settings["batch_size"] - 1) // settings["batch_size"])
+            scheduler = linear_warmup_decay(optimizer, warmup_steps=settings["warmup_steps"],
+                                            total_steps=total_steps)
+        losses = [distill_epoch(student, optimizer, samples, attack,
                                batch_size=settings["batch_size"], device=device,
                                rng=rng, margin_rank=settings["margin_rank"],
-                               margin_neg=settings["margin_neg"], beta=None)
+                               margin_neg=settings["margin_neg"], beta=None,
+                               negative_sampling=settings.get("negative_sampling", "outside_topk"),
+                               scheduler=scheduler)
                   for _ in range(settings["epochs"])]
     elif attack == "become":
         samples, losses = generate_become(oracle, student, optimizer,
@@ -242,7 +287,12 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                                           distill_epochs_per_phase=settings["epochs_per_phase"],
                                           batch_size=settings["batch_size"], device=device,
                                           margin_rank=settings["margin_rank"],
-                                          margin_neg=settings["margin_neg"], beta=settings["beta"])
+                                          margin_neg=settings["margin_neg"], beta=settings["beta"],
+                                          **{key: settings[key] for key in (
+                                              "phase_mean", "phase_std", "feedback_k",
+                                              "negative_sampling", "negatives_per_positive",
+                                              "final_phase_epochs", "terminal_holdout", "frequency_policy",
+                                              "phase_rounding") if key in settings})
     else:
         raise ValueError(attack)
     handle.remove()
@@ -258,25 +308,36 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                               "oracle_counts": oracle.counters()})
     teacher_metrics = evaluate(teacher, split, mode="full", teacher=None,
                                device=device, batch_size=config["training"]["eval_batch_size"])
-    student_metrics = evaluate(student, split, mode="full", teacher=teacher,
+    student_metrics = evaluate(student, split, mode="full", teacher=reference if formal else teacher,
                                device=device, batch_size=config["training"]["eval_batch_size"])
-    sampled_metrics = evaluate(student, split, mode="sampled", teacher=teacher,
-                               device=device, batch_size=config["training"]["eval_batch_size"])
-    result = {"dataset": config["dataset"], "backbone": config["backbone"],
+    sampled_metrics = None
+    if not formal:
+        sampled_metrics = evaluate(student, split, mode="sampled", teacher=teacher,
+                                   device=device, batch_size=config["training"]["eval_batch_size"])
+    result = {"schema_version": 2 if formal else 1,
+              "protocol": config.get("protocol", "legacy-phase1"),
+              "dataset": config["dataset"], "backbone": config["backbone"],
               "defense": defense, "attack": attack, "seed": config["seed"],
               "git_commit": git_commit(),
               "teacher_checkpoint": str(teacher_checkpoint),
               "teacher_sha256": teacher_sha256, "teacher_epoch": teacher_state["epoch"],
               "teacher_training_steps": teacher_state["metadata"].get("training_steps"),
               "clean_parent_sha256": clean_parent_sha256,
+              "agreement_reference": "clean" if formal else "teacher",
+              "agreement_reference_sha256": reference_sha256 if formal else teacher_sha256,
               "student_checkpoint": str(out), "student_sha256": _identity(out),
               "query_dataset": str(query_path), "query_dataset_sha256": query_sha256,
               "data_sha256": split.source_sha256,
               "config_sha256": config["_config_sha256"],
-              "budget_definition": "actual unique prefix requests to ranking-only oracle",
+              "budget_definition": "nominal sequences with actual request accounting" if formal
+                                   else "actual unique prefix requests to ranking-only oracle",
+              "nominal_sequences": settings["n_sequences"],
+              "resolved_attack_config": settings,
+              "generation_details": getattr(oracle, "generation_details", {}),
               "query_counts": oracle.counters(), "teacher_full": teacher_metrics,
               "student_full": student_metrics, "student_sampled": sampled_metrics,
-              "training_steps": training_steps, "distillation_loss_by_epoch": losses,
+              "training_steps": training_steps, "retained_training_rows": len(samples),
+              "distillation_loss_by_epoch": losses,
               "last_distillation_loss": losses[-1] if losses else None,
               "seconds": time.perf_counter() - start}
     path = run_root / "results" / f"{defense}_{attack}.json"
@@ -288,9 +349,9 @@ def _run_attack(config: dict, split, defense: str, attack: str,
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["preprocess", "train-teacher", "run-attack"])
-    parser.add_argument("--config", default="configs/phase1/ml1m_sasrec_seed42.json")
+    parser.add_argument("--config", default="configs/formal/ml1m_sasrec_seed42.json")
     parser.add_argument("--defense", choices=["none", "gro", "continued-clean"])
-    parser.add_argument("--attack", choices=["dfme", "become"])
+    parser.add_argument("--attack", choices=["random", "dfme", "become"])
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--resume", action="store_true")
@@ -308,8 +369,12 @@ def main() -> None:
     if args.command == "run-attack" and args.attack is None:
         parser.error("--attack is required")
     config = _configuration(args.config)
+    if config.get("protocol") == "unified-defense-v1" and args.epochs is not None:
+        parser.error("formal epoch limits come from the configuration; record changes in a new configuration")
     split = _configured_split(config)
     root = Path(config["run_root"])
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "resolved_config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     split.save_metadata(root / "data_metadata.json")
     if args.command == "preprocess":
         print(json.dumps(split.metadata(), indent=2))

@@ -29,14 +29,32 @@ def git_commit() -> str | None:
         return None
 
 
-def source_adamw(model, *, lr: float, weight_decay: float):
-    """Reference-style AdamW groups with no decay on norms and biases."""
+def source_optimizer(model, *, lr: float, weight_decay: float, name: str = "adamw"):
+    """Reference parameter groups, with an explicit optimizer choice."""
     decay, no_decay = [], []
-    for name, parameter in model.named_parameters():
-        (no_decay if "bias" in name or "norm" in name else decay).append(parameter)
-    return torch.optim.AdamW([{"params": decay, "weight_decay": weight_decay},
-                              {"params": no_decay, "weight_decay": 0.0}],
-                             lr=lr, eps=1e-8)
+    for parameter_name, parameter in model.named_parameters():
+        (no_decay if "bias" in parameter_name or "norm" in parameter_name else decay).append(parameter)
+    optimizer = {"adam": torch.optim.Adam, "adamw": torch.optim.AdamW}.get(name.lower())
+    if optimizer is None:
+        raise ValueError(f"unsupported optimizer: {name}")
+    return optimizer([{"params": decay, "weight_decay": weight_decay},
+                      {"params": no_decay, "weight_decay": 0.0}], lr=lr, eps=1e-8)
+
+
+def source_adamw(model, *, lr: float, weight_decay: float):
+    return source_optimizer(model, lr=lr, weight_decay=weight_decay)
+
+
+def linear_warmup_decay(optimizer, *, warmup_steps: int, total_steps: int):
+    if warmup_steps < 0 or total_steps < 1:
+        raise ValueError("warmup_steps must be nonnegative and total_steps positive")
+
+    def factor(step):
+        if step < warmup_steps:
+            return step / max(1, warmup_steps)
+        return max(0.0, (total_steps - step) / max(1, total_steps - warmup_steps))
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, factor)
 
 
 class SASWindows(Dataset):
@@ -83,7 +101,7 @@ class SASWindows(Dataset):
 
 
 def save_checkpoint(path: str | Path, *, model, optimizer, epoch: int,
-                    metadata: dict, student=None, student_optimizer=None) -> None:
+                    metadata: dict, student=None, student_optimizer=None, scheduler=None) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"model": model.state_dict(), "optimizer": optimizer.state_dict(),
@@ -96,6 +114,8 @@ def save_checkpoint(path: str | Path, *, model, optimizer, epoch: int,
         payload["student"] = student.state_dict()
     if student_optimizer is not None:
         payload["student_optimizer"] = student_optimizer.state_dict()
+    if scheduler is not None:
+        payload["scheduler"] = scheduler.state_dict()
     with NamedTemporaryFile(dir=path.parent, delete=False) as stream:
         temporary = Path(stream.name)
     try:

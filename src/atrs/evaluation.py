@@ -12,7 +12,8 @@ from .data import Split, left_pad
 @torch.no_grad()
 def evaluate(model, split: Split, *, mode: str, fold: str = "test",
              teacher=None, sampled_negatives: int = 100,
-             seed: int = 42, device: str = "cpu", batch_size: int = 128) -> dict[str, float | int | str]:
+             seed: int = 42, device: str = "cpu", batch_size: int = 128,
+             ranking_api=None) -> dict[str, float | int | str]:
     """Evaluate one positive per user.
 
     Full ranking excludes items in the evaluation prefix and re-includes the
@@ -22,7 +23,10 @@ def evaluate(model, split: Split, *, mode: str, fold: str = "test",
     """
     if mode not in {"full", "sampled"} or fold not in {"valid", "test"}:
         raise ValueError("invalid mode/fold")
-    model = model.to(device).eval()
+    if ranking_api is None:
+        model = model.to(device).eval()
+    elif mode != "full":
+        raise ValueError("protected ranking evaluation requires full ranking")
     if teacher is not None:
         teacher = teacher.to(device).eval()
     totals = {"hr@10": 0.0, "ndcg@10": 0.0, "agr@1": 0.0, "agr@10": 0.0}
@@ -44,11 +48,25 @@ def evaluate(model, split: Split, *, mode: str, fold: str = "test",
                 pool = [item for item in range(1, split.n_items + 1) if item not in excluded]
                 negatives = random.Random(seed + user).sample(pool, min(sampled_negatives, len(pool)))
                 masks[row, [target, *negatives]] = True
-        tokens = torch.tensor([left_pad(history, model.max_len) for history in histories], device=device)
-        scores = model.next_scores(tokens).masked_fill(~masks, -torch.inf)
         k = min(10, split.n_items)
-        ranked = torch.argsort(scores, dim=1, descending=True, stable=True)[:, :k]
-        valid_ranks = masks.gather(1, ranked)
+        if ranking_api is None:
+            tokens = torch.tensor([left_pad(history, model.max_len) for history in histories], device=device)
+            scores = model.next_scores(tokens).masked_fill(~masks, -torch.inf)
+            ranked = torch.argsort(scores, dim=1, descending=True, stable=True)[:, :k]
+            valid_ranks = masks.gather(1, ranked)
+        else:
+            outputs = ranking_api.predict_topk(histories)
+            if len(outputs) != len(part):
+                raise ValueError("ranking API returned a different batch size")
+            rows = []
+            for output, mask in zip(outputs, masks.tolist()):
+                if (len(output) != len(set(output)) or
+                        any(type(item) is not int or not 1 <= item <= split.n_items for item in output)):
+                    raise ValueError("ranking API must return unique legal integer IDs")
+                selected = [item for item in output if mask[item]][:k]
+                rows.append(selected + [0] * (k - len(selected)))
+            ranked = torch.tensor(rows, device=device)
+            valid_ranks = ranked.ne(0)
         target_tensor = torch.tensor(targets, device=device).unsqueeze(1)
         hits = ranked.eq(target_tensor) & valid_ranks
         totals["hr@10"] += float(hits.any(dim=1).sum())
@@ -60,9 +78,11 @@ def evaluate(model, split: Split, *, mode: str, fold: str = "test",
             teacher_ranked = torch.argsort(teacher_scores, dim=1, descending=True, stable=True)[:, :k]
             totals["agr@1"] += float(ranked[:, 0].eq(teacher_ranked[:, 0]).sum())
             overlap = ranked.unsqueeze(2).eq(teacher_ranked.unsqueeze(1)).any(dim=2)
-            totals["agr@10"] += float(((overlap & valid_ranks).sum(1) / valid_ranks.sum(1)).sum())
+            denominator = masks.sum(1).clamp(max=k)
+            totals["agr@10"] += float(((overlap & valid_ranks).sum(1) / denominator).sum())
     result = {key: value / len(split.users) for key, value in totals.items()}
     if teacher is None:
         result.pop("agr@1")
         result.pop("agr@10")
-    return {"protocol": mode, "fold": fold, "users": len(split.users), **result}
+    return {"protocol": mode, "fold": fold, "users": len(split.users),
+            "recall@10": result["hr@10"], **result}

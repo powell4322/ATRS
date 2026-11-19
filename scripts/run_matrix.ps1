@@ -1,3 +1,4 @@
+# Historical phase1 matrix. The formal protocol uses scripts/run_formal.py.
 param(
   [string]$Python = ".venv\Scripts\python.exe",
   [string]$Config = "configs/phase1/ml1m_sasrec_seed42.json",

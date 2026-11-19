@@ -1,4 +1,5 @@
 @echo off
+rem Historical phase1 matrix. The formal protocol uses scripts/run_formal.py.
 setlocal
 pushd "%~dp0.." || exit /b 1
 set "PYTHON_EXE=.venv\Scripts\python.exe"

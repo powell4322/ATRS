@@ -14,6 +14,7 @@ class QueryCounts:
     generated_sequences: int = 0
     requested_prefixes: int = 0
     unique_queried_prefixes: int = 0
+    unique_model_contexts: int = 0
     oracle_requests: int = 0  # one new prefix, not one batch forward
     model_forward_calls: int = 0  # one batched model invocation
     cache_hits: int = 0
@@ -43,6 +44,7 @@ class RankingOracle:
         self.cache = cache
         self.__cache: dict[tuple[int, ...], tuple[int, ...]] = {}
         self.__seen: set[tuple[int, ...]] = set()
+        self.__contexts: set[tuple[int, ...]] = set()
         self.counts = QueryCounts()
 
     def predict_topk(self, prefixes: Sequence[Sequence[int]], *,
@@ -75,10 +77,12 @@ class RankingOracle:
                 self.counts.model_forward_calls += 1
         results.update(fresh)
         self.__seen.update(keys)
+        self.__contexts.update(key[-self.__model.max_len:] for key in keys)
         self.counts.requested_prefixes += len(keys)
         self.counts.oracle_requests += new_count
         self.counts.cache_hits += len(keys) - new_count
         self.counts.unique_queried_prefixes = len(self.__seen)
+        self.counts.unique_model_contexts = len(self.__contexts)
         if feedback:
             self.counts.feedback_prefixes += len(keys)
             self.counts.feedback_oracle_requests += new_count

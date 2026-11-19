@@ -7,6 +7,7 @@ import json
 import math
 import os
 import shutil
+import statistics
 from pathlib import Path
 
 
@@ -14,6 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CELLS = [(defense, attack)
          for defense in ("none", "gro", "continued-clean")
          for attack in ("dfme", "become")]
+
+
+def cells_for(config: dict) -> list[tuple[str, str]]:
+    if config.get("protocol") == "unified-defense-v1":
+        return [(defense, attack) for defense in config["runnable_defenses"]
+                for attack in ("random", "dfme", "become")]
+    return CELLS
 
 
 def sha256(path: Path) -> str:
@@ -33,7 +41,7 @@ def checked_metric(result: dict, section: str, name: str) -> float:
 
 def load_complete_matrix(config: dict, config_hash: str, run_root: Path) -> list[tuple[Path, dict]]:
     paths = [(run_root / "results" / f"{defense}_{attack}.json", defense, attack)
-             for defense, attack in CELLS]
+             for defense, attack in cells_for(config)]
     missing = [str(path) for path, _, _ in paths if not path.is_file()]
     if missing:
         raise ValueError("incomplete matrix; missing result files: " + ", ".join(missing))
@@ -60,7 +68,8 @@ def load_complete_matrix(config: dict, config_hash: str, run_root: Path) -> list
             raise ValueError(f"{path}: teacher checkpoint differs within defense")
         teacher_hashes[defense] = teacher_hash
         requests = result["query_counts"]["oracle_requests"]
-        if not isinstance(requests, int) or not 0 < requests <= config["api"]["max_requests"]:
+        cap = config["api"]["max_requests"]
+        if not isinstance(requests, int) or requests <= 0 or (cap is not None and requests > cap):
             raise ValueError(f"{path}: invalid oracle request count: {requests!r}")
         counts = result["query_counts"]
         if "requested_prefixes" in counts:
@@ -70,10 +79,18 @@ def load_complete_matrix(config: dict, config_hash: str, run_root: Path) -> list
             raise ValueError(f"{path}: full-ranking protocol missing")
         if result["teacher_full"]["fold"] != "test" or result["student_full"]["fold"] != "test":
             raise ValueError(f"{path}: test fold missing")
-        if result["student_sampled"]["protocol"] != "sampled":
+        formal = config.get("protocol") == "unified-defense-v1"
+        if formal and (result.get("schema_version") != 2 or result.get("agreement_reference") != "clean"
+                       or result.get("protocol") != config["protocol"]
+                       or result.get("nominal_sequences") != config["attacks"][attack]["n_sequences"]
+                       or result.get("resolved_attack_config") != config["attacks"][attack]):
+            raise ValueError(f"{path}: formal protocol or attack settings mismatch")
+        if not formal and result["student_sampled"]["protocol"] != "sampled":
             raise ValueError(f"{path}: sampled evaluation missing")
-        for section, names in (("teacher_full", ("hr@10", "ndcg@10")),
-                               ("student_full", ("hr@10", "ndcg@10", "agr@1", "agr@10"))):
+        recall = "recall@10" if formal else "hr@10"
+        student_names = (recall, "ndcg@10", "agr@10") if formal else (recall, "ndcg@10", "agr@1", "agr@10")
+        for section, names in (("teacher_full", (recall, "ndcg@10")),
+                               ("student_full", student_names)):
             for name in names:
                 checked_metric(result, section, name)
         rows.append((path, result))
@@ -83,7 +100,99 @@ def load_complete_matrix(config: dict, config_hash: str, run_root: Path) -> list
         for path, result in rows:
             if result["defense"] != "none" and result.get("clean_parent_sha256") != teacher_hashes["none"]:
                 raise ValueError(f"{path}: clean parent differs from the None teacher")
+    if config.get("protocol") == "unified-defense-v1":
+        for path, result in rows:
+            if result["agreement_reference_sha256"] != teacher_hashes["none"]:
+                raise ValueError(f"{path}: main Agreement reference differs from the clean target")
     return rows
+
+
+def write_formal_report(report: Path, archive_root: Path) -> None:
+    """Aggregate verified per-seed archives, preserving each attack's defense comparisons."""
+    rows = []
+    configurations = []
+    for manifest_path in sorted(archive_root.glob("*/manifest.json")):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("protocol") != "unified-defense-v1":
+            continue
+        config_path = manifest_path.parent / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        if sha256(config_path) != manifest["config_sha256"]:
+            raise ValueError(f"archived configuration hash differs: {config_path}")
+        configurations.append({key: value for key, value in config.items() if key not in {"seed", "run_root"}})
+        for cell in manifest["cells"]:
+            path = manifest_path.parent / cell["file"]
+            if sha256(path) != cell["sha256"]:
+                raise ValueError(f"archived result hash differs: {path}")
+            rows.append((path, json.loads(path.read_text(encoding="utf-8"))))
+    if configurations and any(config != configurations[0] for config in configurations[1:]):
+        raise ValueError("aggregate formal archives must use the same settings apart from seed and run_root")
+    identities = [(row["seed"], row["attack"], row["defense"]) for _, row in rows]
+    if len(identities) != len(set(identities)):
+        raise ValueError("duplicate seed/attack/defense cells in the aggregate archive")
+    lines = [
+        "# 08 实验结果与分析", "",
+        "[00 导航](00_INDEX.md) · [04 实验协议](04_EXPERIMENT_PROTOCOL.md) · [07 进度](07_PROGRESS.md)", "",
+        "以下数值来自已归档的真实运行。主 Agreement 以原始未保护 Target 为参照。", "",
+        "当前页面列出已完成的可运行 baseline。Ours 待方法确定与实现，完整主矩阵仍有待完成项。", "",
+        "| Seed | Attack | Defense | Target Recall@10 | Target NDCG@10 | Surrogate Recall@10 | Surrogate NDCG@10 | Agreement@10 | 结果 |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for path, result in rows:
+        target, student = result["teacher_full"], result["student_full"]
+        numbers = (target["recall@10"], target["ndcg@10"], student["recall@10"],
+                   student["ndcg@10"], student["agr@10"])
+        metrics = " | ".join(f"{value:.6f}" for value in numbers)
+        link = Path(os.path.relpath(path, report.parent)).as_posix()
+        lines.append(f"| {result['seed']} | {result['attack']} | {result['defense']} | {metrics} | [JSON]({link}) |")
+    lines.extend(["", "## 同一攻击下的防御效应", "",
+                  "以下差值为 GRO 减 None，均使用同一 seed、同一攻击的配置。", "",
+                  "| Seed | Attack | Δ Target Recall@10 | Δ Target NDCG@10 | Δ Surrogate Recall@10 | Δ Surrogate NDCG@10 | Δ Agreement@10 |",
+                  "| --- | --- | ---: | ---: | ---: | ---: | ---: |"])
+    indexed = {(result["seed"], result["attack"], result["defense"]): result for _, result in rows}
+    measurements = (("teacher_full", "recall@10"), ("teacher_full", "ndcg@10"),
+                    ("student_full", "recall@10"), ("student_full", "ndcg@10"), ("student_full", "agr@10"))
+    for seed, attack, defense in sorted(indexed):
+        if defense != "gro" or (seed, attack, "none") not in indexed:
+            continue
+        protected = indexed[(seed, attack, defense)]
+        clean = indexed[(seed, attack, "none")]
+        values = " | ".join(f"{protected[section][name] - clean[section][name]:+.6f}"
+                            for section, name in measurements)
+        lines.append(f"| {seed} | {attack} | {values} |")
+    lines.extend(["", "## 三种子汇总", "",
+                  "| Attack | Defense | 完成种子数 | Target Recall@10 | Target NDCG@10 | Surrogate Recall@10 | Surrogate NDCG@10 | Agreement@10 |",
+                  "| --- | --- | ---: | --- | --- | --- | --- | --- |"])
+    for attack in ("random", "dfme", "become"):
+        for defense in ("none", "gro"):
+            group = [result for _, result in rows if result["attack"] == attack and result["defense"] == defense]
+            seeds = {result["seed"] for result in group}
+            if seeds != {42, 43, 44} or len(group) != 3:
+                lines.append(f"| {attack} | {defense} | {len(seeds)} | pending | pending | pending | pending | pending |")
+                continue
+            if len({result["git_commit"] for result in group}) != 1:
+                raise ValueError("three-seed aggregation requires a common source commit")
+            statistics_cells = []
+            for section, metric in measurements:
+                values = [result[section][metric] for result in group]
+                statistics_cells.append(f"{statistics.mean(values):.6f} ± {statistics.stdev(values):.6f}")
+            lines.append(f"| {attack} | {defense} | 3 | " + " | ".join(statistics_cells) + " |")
+    lines.extend(["", "## 资源记录", "",
+                  "资源用于审查同一攻击在不同防御下的消耗。", "",
+                  "| Seed | Attack | Defense | 名义序列 | 不同原始前缀 | 不同模型上下文 | 逻辑请求 | 反馈行 | 新 API 请求 | 训练步数 |",
+                  "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"])
+    for _, result in rows:
+        counts = result["query_counts"]
+        lines.append(f"| {result['seed']} | {result['attack']} | {result['defense']} | "
+                     f"{result['nominal_sequences']} | {counts['unique_queried_prefixes']} | "
+                     f"{counts['unique_model_contexts']} | {counts['requested_prefixes']} | "
+                     f"{counts['feedback_prefixes']} | {counts['oracle_requests']} | {result['training_steps']} |")
+    lines.extend(["", "## 分析要求", "",
+                  "三种子齐全后，逐个 Attack × Defense 汇总均值和样本标准差。"
+                  "同时检查 Target 效用、None 下的提取信号、实际预算与 checkpoint 谱系。"
+                  "本页尚未提供跨种子的统计显著性判断。", ""])
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("\n".join(lines), encoding="utf-8")
 
 
 def publish(config_path: Path, report: Path, archive: Path) -> None:
@@ -105,17 +214,22 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
         "git_commit": commit,
         "config_sha256": config_hash,
         "data_sha256": config["expected_data_sha256"],
+        "protocol": config.get("protocol", "legacy-phase1"),
         "cells": [{"defense": result["defense"], "attack": result["attack"],
                    "file": path.name, "sha256": sha256(archive / path.name)}
                   for path, result in rows],
     }
     (archive / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if config.get("protocol") == "unified-defense-v1":
+        shutil.copyfile(config_path, archive / "config.json")
+        write_formal_report(report, archive.parent)
+        return
     lines = [
-        "# 23 Phase I results: ML-1M / SASRec",
+        "# 08 实验结果与分析",
         "",
         "<!-- doc-nav:start -->",
-        "[00 总索引](README.md) · [01 待审决策](REVIEW_DECISIONS.md) · [上一页 22](REPOSITORY_LAYOUT.md)",
+        "[00 导航](00_INDEX.md) · [09 待确认](09_IMPLEMENTATION_AND_TBD.md)",
         "<!-- doc-nav:end -->",
         "",
         "<!-- doc-toc:start -->",
@@ -173,7 +287,7 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
         "",
         f"Machine-readable provenance: [manifest.json]({Path(os.path.relpath(archive / 'manifest.json', report.parent)).as_posix()}).",
         "",
-        "The source data, model implementation and baseline deviations are documented in [DATA_PROTOCOL.md](DATA_PROTOCOL.md), [REPRODUCTION_PROTOCOL.md](REPRODUCTION_PROTOCOL.md) and [KNOWN_DEVIATIONS.md](KNOWN_DEVIATIONS.md).",
+        "Data, protocol and implementation differences are documented in [05](05_DATA_AND_BUDGET.md), [04](04_EXPERIMENT_PROTOCOL.md) and [03](03_CONFIGURATION_AUDIT.md).",
         "",
     ]
     report.parent.mkdir(parents=True, exist_ok=True)
@@ -182,13 +296,19 @@ def publish(config_path: Path, report: Path, archive: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/phase1/ml1m_sasrec_seed42.json")
-    parser.add_argument("--report", default="docs/RESULTS.md")
-    parser.add_argument("--archive", default="result/phase1/ml1m_sasrec_seed42")
+    parser.add_argument("--config", default="configs/formal/ml1m_sasrec_seed42.json")
+    parser.add_argument("--report")
+    parser.add_argument("--archive")
     args = parser.parse_args()
     config_path = Path(args.config).resolve()
-    publish(config_path, Path(args.report).resolve(), Path(args.archive).resolve())
-    print(f"published validated results to {args.report}")
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    formal = config.get("protocol") == "unified-defense-v1"
+    stage = "formal" if formal else "phase1"
+    archive = Path(args.archive) if args.archive else ROOT / "result" / stage / config_path.stem
+    default_report = ROOT / "docs/08_RESULTS.md" if formal else archive / "ANALYSIS.md"
+    report = Path(args.report) if args.report else default_report
+    publish(config_path, report.resolve(), archive.resolve())
+    print(f"published validated results to {report}")
 
 
 if __name__ == "__main__":

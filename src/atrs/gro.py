@@ -15,7 +15,8 @@ def gro_step(teacher, student, teacher_optimizer, student_optimizer,
              tokens: torch.Tensor, positives: torch.Tensor,
              negatives: torch.Tensor, *, topk: int = 100,
              margin_rank: float = 0.5, margin_neg: float = 0.5,
-             margin_swap: float = 0.5, swap_weight: float = 0.01) -> dict[str, float]:
+             margin_swap: float = 0.5, swap_weight: float = 0.01,
+             loss_normalization: str = "mean") -> dict[str, float]:
     """One joint teacher/student update with a dense swap matrix.
 
     The local student is initialized independently and discarded after GRO.
@@ -42,9 +43,14 @@ def gro_step(teacher, student, teacher_optimizer, student_optimizer,
     ranked_student_scores = torch.bmm(swap, student_scores.unsqueeze(-1)).squeeze(-1)
     negatives_ranked = negatives_outside_topk(ranking, teacher.n_items, k)
     negative_scores = student_scores.gather(1, negatives_ranked)
-    student_loss = (F.relu(ranked_student_scores[:, 1:] - ranked_student_scores[:, :-1]
-                           + margin_rank).mean()
-                    + F.relu(negative_scores - ranked_student_scores + margin_neg).mean())
+    intra = F.relu(ranked_student_scores[:, 1:] - ranked_student_scores[:, :-1] + margin_rank)
+    inter = F.relu(negative_scores - ranked_student_scores + margin_neg)
+    if loss_normalization == "paper_sum":
+        student_loss = (intra.sum(1) + inter.sum(1)).mean()
+    elif loss_normalization == "mean":
+        student_loss = intra.mean() + inter.mean()
+    else:
+        raise ValueError("unknown GRO loss normalization")
     ranking_grad = torch.autograd.grad(student_loss, swap, retain_graph=True)[0].detach()
     ranking_grad[:, :, 0] = -torch.inf  # padding is not a candidate
     replacement = ranking_grad.argmax(dim=2)

@@ -217,7 +217,8 @@ def main() -> None:
     config = _configuration(args.config)
     split = _configured_split(config)
     k = config["api"]["topk"]
-    if args.length < 2 or args.sequences * args.length > config["api"]["max_requests"]:
+    cap = config["api"]["max_requests"]
+    if args.length < 2 or (cap is not None and args.sequences * args.length > cap):
         raise ValueError("require length >= 2 and sequences * length <= the configured request cap")
     if args.command == "t2-t4":
         if (not math.isfinite(args.eta) or args.eta <= 0 or args.warmup_epochs < 0
@@ -231,6 +232,7 @@ def main() -> None:
     teacher, checkpoint, state = _load_teacher(config, split, "none", Path(config["run_root"]), args.device)
     args.output.mkdir(parents=True, exist_ok=False)
     manifest = {
+        "usage": "defender mechanism diagnostic; excluded from formal attack training and selection",
         "arguments": {**vars(args), "output": str(args.output)},
         "teacher_config": config, "teacher_checkpoint": str(checkpoint),
         "teacher_sha256": _identity(checkpoint), "teacher_epoch": state["epoch"],

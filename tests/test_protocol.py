@@ -118,6 +118,22 @@ def test_full_ranking_handles_different_candidate_counts_in_the_same_batch(tmp_p
     assert metrics["hr@10"] == metrics["agr@10"] == 1.0
 
 
+def test_protected_target_utility_uses_the_returned_ranking(tmp_path):
+    source = tmp_path / "data.txt"
+    source.write_text("1 1\n1 2\n1 3\n1 4\n1 5\n1 6\n", encoding="utf-8")
+    split = load_split(source)
+
+    class ProtectedAPI:
+        def predict_topk(self, histories):
+            assert histories == [[1, 2, 3, 4, 5]]
+            return [[5, 4, 3]]
+
+    teacher = DeterministicTeacher()
+    assert evaluate(teacher, split, mode="full")["recall@10"] == 1.0
+    protected = evaluate(teacher, split, mode="full", ranking_api=ProtectedAPI())
+    assert protected["recall@10"] == protected["ndcg@10"] == 0.0
+
+
 def test_exported_query_dataset_has_stable_checksum(tmp_path):
     samples = [Sample((1, 2), (4, 3, 2)), Sample((2, 4), (1, 5, 6))]
     first = _save_queries(tmp_path / "a.jsonl.gz", samples)

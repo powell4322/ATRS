@@ -1,0 +1,131 @@
+{
+  "dataset": "ml-1m",
+  "backbone": "sasrec",
+  "data_path": "data/ml-1m.txt",
+  "expected_data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
+  "run_root": "runs/formal/ml1m_sasrec_seed42",
+  "seed": 42,
+  "model": {
+    "max_len": 200,
+    "hidden": 64,
+    "layers": 2,
+    "heads": 2,
+    "dropout": 0.1,
+    "attention_dropout": 0.1
+  },
+  "training": {
+    "lr": 0.001,
+    "weight_decay": 0.01,
+    "batch_size": 128,
+    "eval_batch_size": 128,
+    "sliding_fraction": 0.5,
+    "clean_epochs": 1000,
+    "finetune_epochs": 20,
+    "patience": 30,
+    "optimizer": "adam",
+    "scheduler": "linear_warmup_decay",
+    "warmup_steps": 100,
+    "finetune_scheduler": "constant",
+    "finetune_warmup_steps": 0
+  },
+  "gro": {
+    "margin_rank": 0.5,
+    "margin_neg": 0.5,
+    "margin_swap": 0.5,
+    "swap_weight": 0.01,
+    "loss_normalization": "paper_sum"
+  },
+  "api": {
+    "topk": 100,
+    "batch_size": 128,
+    "max_requests": null,
+    "cache": true
+  },
+  "attacks": {
+    "dfme": {
+      "n_sequences": 1000,
+      "sequence_len": 200,
+      "generation_batch_size": 50,
+      "batch_size": 128,
+      "epochs": 20,
+      "lr": 0.001,
+      "margin_rank": 0.75,
+      "margin_neg": 1.5,
+      "optimizer": "adam",
+      "scheduler": "linear_warmup_decay",
+      "warmup_steps": 100,
+      "negative_sampling": "source_softmax"
+    },
+    "become": {
+      "n_sequences": 1000,
+      "sequence_len": 200,
+      "phases": 8,
+      "initial_fraction": 0.1,
+      "select_fraction": 0.5,
+      "alpha": 0.8,
+      "epochs_per_phase": 20,
+      "batch_size": 128,
+      "lr": 0.001,
+      "margin_rank": 0.75,
+      "margin_neg": 1.5,
+      "beta": 0.5,
+      "final_phase_epochs": 30,
+      "optimizer": "adam",
+      "scheduler": "constant",
+      "warmup_steps": 0,
+      "phase_mean": 0.0,
+      "phase_std": 1.0,
+      "phase_rounding": "round",
+      "feedback_k": 10,
+      "terminal_holdout": true,
+      "frequency_policy": "unique_responses",
+      "negative_sampling": "source_softmax",
+      "negatives_per_positive": 30
+    },
+    "random": {
+      "n_sequences": 1000,
+      "sequence_len": 200,
+      "generation_batch_size": 50,
+      "batch_size": 128,
+      "epochs": 20,
+      "lr": 0.001,
+      "margin_rank": 0.75,
+      "margin_neg": 1.5,
+      "optimizer": "adam",
+      "scheduler": "linear_warmup_decay",
+      "warmup_steps": 100,
+      "negative_sampling": "source_softmax"
+    }
+  },
+  "protocol": "unified-defense-v1",
+  "schema_version": 2,
+  "evaluation": {
+    "mode": "full",
+    "agreement_reference": "clean",
+    "history_filter": "exclude_seen_restore_target",
+    "k": 10
+  },
+  "runnable_defenses": [
+    "none",
+    "gro"
+  ],
+  "planned_defenses": [
+    "none",
+    "gro",
+    "ours"
+  ],
+  "configuration_sources": {
+    "sequence_dropout_layers_heads_optimizer_lr_weight_decay_batch_margins": "DFME section 5.1 / Table 3; BECOME section 5.1 / Table 2",
+    "teacher_warmup_and_dfme_warmup": "DFME section 5.1.3, 100 steps",
+    "hidden_64_sliding_0.5_teacher_epoch_limit_1000": "both author utils.py set_template",
+    "teacher_patience_30_finetune_20_gro_settings_dfme_epochs_20": "existing ATRS phase1 configuration; paper values unspecified; retained as recorded repository choices",
+    "become_rho_stages_gamma_alpha_beta": "BECOME section 5.1.5",
+    "become_phase_mean_std_20_and_final_30_epochs": "BECOME author trainer/utils.py random_len and trainer/distiller.py train_autoregressive",
+    "negative_sampling": "author calculate_loss, explicit source_softmax behavior, with replacement",
+    "random_generation": "BECOME section 5.1.4, uniform item catalog; DFME ranking distillation",
+    "source_parity": "paper-oriented configuration with documented source conflicts, see docs/03_CONFIGURATION_AUDIT.md",
+    "seeds": "ATRS run identifiers 42,43,44; all three are project choices",
+    "gro_loss_normalization": "GRO Eq. (4), sum over ranked items and then batch mean",
+    "finetune_scheduler": "existing ATRS GRO fine-tuning loop, constant LR and no warmup"
+  }
+}

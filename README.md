@@ -1,56 +1,20 @@
-# ATRS Phase I
+# ATRS 主动模型提取防御研究
 
-SASRec-first benchmark for DFME/BECOME model extraction and GRO defense. The checked-in code is independently implemented from the papers. The supplied ML-1M, Steam and Beauty text files are tracked under `data/`; paper PDFs remain local under `paper/`.
+课题组自有序列推荐模型在公开数据集、授权离线环境中的防御实验。仓库包含独立实现的 SASRec、Random/DFME/BECOME 和 SASRec 上的 GRO 训练迁移，以及理论探针与统一评价。
 
-See the [research document index](docs/README.md) for theory, candidate contributions, related work, protocol audits and Schemes A/B/C. On MatPool, follow the [staged Linux runbook](docs/MATPOOL_RUN.md) to verify clean SASRec + DFME and run the T1–T5 diagnostic entry points.
+文档入口为 [00 研究导航](docs/00_INDEX.md)。每篇文件以编号命名，全部可执行命令集中在 [06 运行命令](docs/06_COMMANDS.md)。
 
-Start review at [01 protocol, metrics, models and parameter decisions](docs/REVIEW_DECISIONS.md). Follow [20 Git synchronization](docs/GIT_WORKFLOW.md) for local/cloud edits and measured-result publication. All research documents have numbered navigation in [00 the document index](docs/README.md).
+| 要查的内容 | 文档 |
+| --- | --- |
+| 理论推导、候选方法和贡献 | [01 理论与贡献](docs/01_THEORY_AND_CONTRIBUTIONS.md) |
+| 论文与代码参数、差异和来源 | [03 配置核查](docs/03_CONFIGURATION_AUDIT.md) |
+| 冻结实验设置、主指标与公平性 | [04 实验协议](docs/04_EXPERIMENT_PROTOCOL.md) |
+| 数据使用、data-free 边界和预算 | [05 数据与预算](docs/05_DATA_AND_BUDGET.md) |
+| 正式服务器执行、本地测试和同步 | [06 全部命令](docs/06_COMMANDS.md) |
+| 进度、真实结果和待确认项 | [07 进度](docs/07_PROGRESS.md)、[08 结果](docs/08_RESULTS.md)、[09 待确认](docs/09_IMPLEMENTATION_AND_TBD.md) |
 
-## Scope
+首批正式配置位于 configs/formal，ML-1M + SASRec、1000 条名义序列、三种子。当前可执行 None/GRO × Random/DFME/BECOME，Ours 待研究证据确定。完整计划为 ML-1M/Beauty/Steam 和 SASRec/BERT4Rec 的同构防御比较，扩展入口状态见 09。
 
-- ML-1M chronological leave-one-out; clean and GRO-fine-tuned SASRec teachers.
-- Ranking-only Top-100 oracle with actual prefix-request accounting.
-- DFME and BECOME as separate attack modules with separate query generation and losses.
-- Full-ranking unified evaluation plus 100-negative sampled evaluation.
+Git 只跟踪 data 下 ML-1M、Beauty、Steam 三个文本。正式结果主表为 Full Ranking 的 Recall@10、NDCG@10、clean-reference Agreement@10。checkpoint、查询与详细日志留在 runs，精简结果经审查进入 result。
 
-The scope of omitted methods is documented in [related work](docs/RELATED_WORK.md).
-The directory roles and publication flow are in [repository layout](docs/REPOSITORY_LAYOUT.md): frozen configuration in `configs/`, server logs and checkpoints in ignored `runs/`, validated metrics in `result/`, and interpretation in `docs/`.
-
-## Local software checks (PowerShell)
-
-```powershell
-uv venv .venv
-uv pip install --python .venv\Scripts\python.exe -e ".[test]"
-& .venv\Scripts\python.exe -m pytest -q
-& .venv\Scripts\python.exe scripts\smoke.py
-& .venv\Scripts\python.exe -m atrs.cli preprocess --config configs/phase1/ml1m_sasrec_seed42.json
-```
-
-## Formal matrix on the Windows 4090 server
-
-The configuration in `configs/phase1/ml1m_sasrec_seed42.json` caps every attack at 20,000 **actual oracle prefix requests** and preserves method-specific sequence generation. It is an integration comparison, not any paper's original budget. The CLI saves actual requests and checkpoints for every run. Formal training is intended for the user's CUDA server; local checks do not generate research results. `git clone` obtains the three text datasets. `preprocess` rejects a file whose SHA-256 differs from the frozen configuration.
-
-Follow the [Windows RTX 4090 CMD guide](docs/WINDOWS_4090_RUN.md) for the full `git clone`/`git pull`, CUDA PyTorch installation, data verification, run and result-publishing commands. Once the environment is ready, run in Command Prompt:
-
-```bat
-call scripts\run_matrix.cmd
-```
-
-The launcher runs clean, GRO, and continued-clean teachers. DFME and BECOME produce four primary cells plus two continued-clean control cells. Teacher training supports `--resume`; attack runs restart after interruption.
-After all six cells succeed, the launcher generates [the results analysis page](docs/RESULTS.md) and validated result JSON files in `result/phase1/ml1m_sasrec_seed42/`. That page currently records **pending**, since no formal GPU run has been completed.
-
-## Linux CUDA alternative
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-# Install a PyTorch build compatible with the server CUDA environment first.
-pip install -e ".[test]"
-python -m pytest -q
-python scripts/smoke.py
-bash scripts/run_matrix.sh
-```
-
-To run a single cell, use `python -m atrs.cli train-teacher --defense none|gro|continued-clean` or `python -m atrs.cli run-attack --defense none|gro|continued-clean --attack dfme|become` with `--config` and `--device cuda`.
-
-Read [the reproduction protocol](docs/REPRODUCTION_PROTOCOL.md), [fairness decisions](docs/BASELINE_FAIRNESS.md), and [implementation status](docs/IMPLEMENTATION_STATUS.md) before interpreting outputs. Smoke-test numbers are never research results.
+当前无正式 GPU 防御指标。旧 phase1 配置及 baseline 仍保留，具体与论文的差异、工程参数及 TBD 已集中到 03/09。

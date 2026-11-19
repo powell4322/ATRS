@@ -1,10 +1,7 @@
-# 02 排序反馈的反提取理论
+# 01 理论与贡献
 
-<!-- doc-nav:start -->
-[00 总索引](../README.md) · [01 待审决策](../REVIEW_DECISIONS.md) · [上一页 01](../REVIEW_DECISIONS.md) · [下一页 03](contributions.md)
-<!-- doc-nav:end -->
+[00 导航](00_INDEX.md) · [06 命令](06_COMMANDS.md) · [09 待确认](09_IMPLEMENTATION_AND_TBD.md) · [上一页 00](00_INDEX.md) · [下一页 02](02_RELATED_WORK.md)
 
-<!-- doc-toc:start -->
 **本页目录**
 
 - [威胁模型与目标](#section-1)
@@ -12,7 +9,11 @@
 - [B. 查询生成的反馈效应](#section-3)
 - [C. 训练时内化防御](#section-4)
 - [代理迁移与鲁棒性](#section-5)
-<!-- doc-toc:end -->
+- [候选贡献与证据](#section-6)
+- [从理论到机制实验](#section-7)
+- [Scheme C 的实现可行性](#section-8)
+
+本页保存共享理论、三个候选方向、数学保证的条件以及对应的贡献证据。最终 Ours 依据真实实验确定，主实验设置以 04 为准，异构代理和跨损失属于可选研究扩展。
 
 <a id="section-1"></a>
 
@@ -71,7 +72,7 @@ J_{\mathrm{exact}}=-\eta\int_0^1\nabla V(\psi-\eta(g_R+t\Delta g))^\top\Delta g\
 \frac{L\eta^2}{2}\lVert\Delta g\rVert(\lVert g_R\rVert+\lVert g_{\tilde R}\rVert).
 $$
 
-第二个界利用梯度 Lipschitz 性和 $\lVert g_R+t\Delta g\rVert\le(1-t)\lVert g_R\rVert+t\lVert g_{\tilde R}\rVert$。以上为同一内部代理的局部 SGD 性质。AdamW 的有效更新依赖当前梯度、动量和权重衰减，诊断时应固定同一个优化器状态再分别应用两个候选更新。
+第二个界利用梯度 Lipschitz 性和 $\lVert g_R+t\Delta g\rVert\le(1-t)\lVert g_R\rVert+t\lVert g_{\tilde R}\rVert$。以上为同一内部代理的局部 SGD 性质。Adam/AdamW 的有效更新依赖当前梯度、动量和权重衰减，诊断时应固定同一个优化器状态再分别应用两个候选更新。
 
 ### 分数空间投影及局部编辑
 
@@ -113,7 +114,7 @@ $$
 
 C1 在 $\Omega(x)$ 内求 $R'=\arg\max_{\tilde R}J_{\mathrm{LP}}(\tilde R)$，再用 $\mathcal L_{\mathrm{rec}}+\lambda\mathcal L_{\mathrm{def}}+\mu\mathcal L_{\mathrm{preserve}}$ 更新教师。可微 $\mathcal L_{\mathrm{def}}$ 用 margin 约束 $R'$ 的内部顺序，以及 $i\in R',j\notin R'$ 的成员得分差。完整 Top-$K$ 恢复要求同时满足成员和顺序条件。以抽样成员对训练时，需要测量实际输出的一致性及推荐效用。
 
-C2 直接对 $v^\top\nabla_\psi\ell(x,R_\theta(x))$ 加正则，$R_\theta$ 的离散 Top-$K$ 要求处理梯度传递、松弛偏差和稳定性。C3 探索表示层的迁移正则，须用 API 层指标确认其作用。见 [C 可行性](scheme_c_feasibility.md)。
+C2 直接对 $v^\top\nabla_\psi\ell(x,R_\theta(x))$ 加正则，$R_\theta$ 的离散 Top-$K$ 要求处理梯度传递、松弛偏差和稳定性。C3 探索表示层的迁移正则，须用 API 层指标确认其作用。见 [本页的 C 可行性](#scheme-c)。
 
 <a id="section-5"></a>
 
@@ -122,3 +123,54 @@ C2 直接对 $v^\top\nabla_\psi\ell(x,R_\theta(x))$ 加正则，$R_\theta$ 的�
 若在公共 $\Omega(x)$ 上 $\sup_R|J_\psi(R)-J_\phi(R)|\le\xi$，内部代理 argmax 在外部代理局部目标上的 regret 至多 $2\xi$。证明先以 $\xi$ 将外部最优值换到内部目标，再用内部最优性，最后以 $\xi$ 换回外部目标。T7 测量可观测代理之间的候选排序一致性、符号一致率和选择 regret。
 
 先测试单 Student，按独立初始化、异构代理、跨损失、跨查询策略及 Top-$h$-only 顺序扩展。多 Student 可比较归一化得分的均值、逐查询最小值及 $\max_{\mathcal P}\min_a\mathbb E_x[\bar J_a(x,\mathcal P)]$。这些目标覆盖预选模拟器，真实自适应攻击的效果仍需测量。
+
+<a id="section-6"></a>
+
+## 候选贡献与证据
+
+论文拟研究在保持推荐效用的前提下，如何减少数据无关、仅排序黑盒攻击在有限查询内获得的知识。下面的创新点用于组织实验和论文证据。最终贡献随验证结果确定。
+
+| 候选贡献 | 可以支持的现有结论 | 成为论文贡献所需的证据 |
+| --- | --- | --- |
+| A 的目标错配与定向干预 | 合法头部保持空间存在 hinge 反例，局部 SGD 有充分条件 | T2 证明 LP 更能预测真实一步效应，随后在同效用、同编辑强度下比随机、Loss 和 Gradient-deviation 降低提取收益 |
+| 离散排序的高效求解 | 梯度投影恒等式、相邻 hinge 消去及固定负集合的 listwise 交换增量可推导 | T3/T4 明确哪些编辑有效，比较完整反传、JVP、输出层近似的误差、时延与端到端效应 |
+| B 的双通道分解 | 均匀生成中的单步 TV、有限步界及局部查询价值分解成立 | T5 分离监督和轨迹效应，T6 证明估计值能预测提取收益，再与等编辑量随机替换比较 |
+| C 的训练时内化 | 当前 SASRec + GRO 有训练入口与独立 Student，C1 有可微约束设计 | 在 A 提供有效目标且在线成本值得节省后，测排序恢复、同效用安全性、训练与推理开销 |
+| 跨代理鲁棒性 | 一致估计误差给出 $2\xi$ 局部 regret 界 | 独立代理、DFME/BECOME、跨损失及完整 Top-$h$-only 自适应攻击下有收益 |
+
+<a id="section-7"></a>
+
+## 从理论到机制实验
+
+H1 检验相同效用和编辑强度下，学习进展目标相对 Loss Maximization 与随机编辑的作用。H2 检验序列反馈的轨迹作用能否独立于监督改变。H3 检验可否将有效排序机制内化到目标训练。
+
+T2 在固定前缀、Student 与候选上比较当前损失、梯度偏离、LP 和 Exact，用每查询 Pearson/Spearman、最优候选一致率与选择 regret 评价。参考任务使用防御者 train-only 下一物品 BCE，查询内固定负样本。不同初始化和预定训练阶段分别报告。一步充分条件基于 SGD，正式外部攻击采用 Adam 时需用相同动量状态的真实更新向量进一步检验。
+
+T3 分别测 intra/inter 的激活率、梯度范数和编辑前后变化。只有首尾保持且修改前后相邻 hinge 均严格激活时，望远镜结论才适用。实际有部分激活时按受影响边计算。T4 比较完整参数反传、完整 JVP 和输出侧近似，记录误差与重复测量的耗时。模型共享 item embedding 时，输出侧投影忽略输入和编码器路径。
+
+T1 在固定生成查询上研究 Top-5/10/20/50/100、位次区间和 intra/inter 价值。完整 Top-h-only 攻击需要同时限制生成和监督，两者对应不同的研究控制。正式主矩阵仍为 Top-100 API。
+
+T5 使用以下四格分解反馈作用，随机成员替换作为诊断机制。
+
+| 组 | 生成 | 蒸馏监督 |
+| --- | --- | --- |
+| B-00 | clean | clean |
+| B-01 | clean | protected |
+| B-10 | protected | clean |
+| B-11 | protected | protected |
+
+令指标为 $Y_{gs}$，固定 clean generation 的监督效应为 $Y_{01}-Y_{00}$，固定 clean supervision 的轨迹效应为 $Y_{10}-Y_{00}$，交互为 $Y_{11}-Y_{10}-Y_{01}+Y_{00}$。两种生成共用起始 ID、RNG 和训练步数，前缀分别复用给两种监督。双视图读取归入防御方诊断，正式攻击只读其保护接口。覆盖率、人气桶、重复率和序列状态分布用于解释机制。
+
+T6 比较精确未来查询价值、物品缓存、上下文簇缓存和小规模 lookahead，检验与真实短期学习的相关性。先证明价值估计能预测效果，再确定是否发展定向 B。T7 优先研究不同初始化的同构代理，其他架构和损失保持可选。
+
+<a id="section-8"></a>
+
+## Scheme C 的实现可行性
+
+<a id="scheme-c"></a>
+
+当前 GRO 保留 SASRec BCE 和独立内部 Student，教师与 Student 各有优化器，适合复用共同 clean parent。原 row-wise argmax 允许多位置选中同一物品，C1 需要从完整合法列表中选 $R'$ 并验证成员唯一、头部和编辑预算。可用相邻偏序 margin 加列表内外 membership 约束学习目标排序，再实测 Agr@K、顺序敏感一致性、头部保持率和真实效用。
+
+C2 需要处理离散 Top-K 的梯度、松弛误差和高阶计算。C3 的表示约束还需证明对 API 排序的影响。推进 C1 的依据是 A 的效应与在线计算成本，训练时模型一般需要单独测量头部效用保证。
+
+每项诊断与主实验的完成度见 [07 进度](07_PROGRESS.md)，实现缺口见 [09](09_IMPLEMENTATION_AND_TBD.md)。运行命令集中在 [06](06_COMMANDS.md)。

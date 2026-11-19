@@ -1,9 +1,7 @@
 # Versioned experiment results
 
-This directory holds validated, machine-readable **measured results**. It contains no training checkpoints, query logs or manually typed scores.
+Validated formal metrics, resolved configurations and per-seed manifests belong under `result/formal/<experiment>/`. The corresponding analysis is generated into [08 results](../docs/08_RESULTS.md). Three-seed summaries compare defenses within each attack.
 
-After the Phase I Windows or Linux launcher completes all six cells, `scripts/export_results.py` copies the six validated result JSON files into `result/phase1/ml1m_sasrec_seed42/` and writes a `manifest.json` with Git, configuration, dataset and file hashes. The corresponding descriptive tables and interpretation belong in `docs/RESULTS.md`.
+Full checkpoints, query datasets and detailed logs remain in the cloud `runs/` directory. Reviewed mechanism diagnostics may be archived under `result/research/` with explicit diagnostic metadata.
 
-No formal GPU run has been completed yet, so this directory currently has no measured result JSON files.
-
-Reviewed T1–T5 diagnostic outputs can be archived under `result/research/<experiment>/` with their full resolved configuration and execution command. The [Git workflow](../docs/GIT_WORKFLOW.md) describes the cloud-to-local publication steps. Full checkpoints, query datasets and detailed logs remain under the cloud `runs/` directory.
+No formal GPU results are available yet. See [06 commands](../docs/06_COMMANDS.md) for publication and synchronization, and [10 repository lifecycle](../docs/10_REPOSITORY_AND_SYNC.md) for artifact roles. Legacy phase1 configurations and their archival behavior remain available.

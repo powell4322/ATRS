@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Historical phase1 matrix. The formal protocol uses scripts/run_formal.py.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
