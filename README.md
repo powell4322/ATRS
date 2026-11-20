@@ -10,11 +10,11 @@
 | 论文与代码参数、差异和来源 | [03 配置核查](docs/03_CONFIGURATION_AUDIT.md) |
 | 冻结实验设置、主指标与公平性 | [04 实验协议](docs/04_EXPERIMENT_PROTOCOL.md) |
 | 数据使用、data-free 边界和预算 | [05 数据与预算](docs/05_DATA_AND_BUDGET.md) |
-| 正式服务器执行、本地测试和同步 | [06 全部命令](docs/06_COMMANDS.md) |
+| 环境配置、正式运行和本机检查 | [06 运行命令](docs/06_COMMANDS.md) |
 | 进度、真实结果和待确认项 | [07 进度](docs/07_PROGRESS.md)、[08 结果](docs/08_RESULTS.md)、[09 待确认](docs/09_IMPLEMENTATION_AND_TBD.md) |
 
 当前首轮配置位于 configs/gro_first，ML-1M + SASRec、1000 条名义序列、正常训练轮次、三种子。用户已确认先完成 GRO × Random/DFME/BECOME，None 的攻击格暂缓，初步改进方案之后确定。基础 clean teacher 仍作为 GRO 预训练和 Agreement 参照。完整计划及扩展入口见 04/09。
 
-Git 只跟踪 data 下 ML-1M、Beauty、Steam 三个文本。正式结果主表为 Full Ranking 的 Recall@10、NDCG@10、clean-reference Agreement@10。指定实例的项目默认放在 ~/workspace/ATRS，复用预装依赖并用 tmux 训练。checkpoint、查询与日志在项目 runs 内，SCP 备份到本地，精简结果经审查进入 Git。
+Git 只跟踪 data 下 ML-1M、Beauty、Steam 三个文本。正式结果主表为 Full Ranking 的 Recall@10、NDCG@10、clean-reference Agreement@10。指定实例的项目默认放在 ~/workspace/ATRS，复用预装依赖，直接运行正式实验。本机执行软件检查，服务器不做 smoke。checkpoint、查询与日志保存在项目 runs 内。
 
 当前无正式 GPU 防御指标。旧 phase1 配置及 baseline 仍保留，具体与论文的差异、工程参数及 TBD 已集中到 03/09。
