@@ -1,4 +1,4 @@
-"""Run the available formal ML-1M/SASRec defense cells at full configured budgets."""
+"""Run ML-1M/SASRec defense cells at full budgets; default to exploratory seed 42."""
 from __future__ import annotations
 
 import argparse
@@ -55,9 +55,9 @@ def complete_result(path: Path, config: dict, defense: str, attack: str) -> bool
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--configs", nargs="+", default=[
-        f"configs/gro_first/ml1m_sasrec_seed{seed}.json" for seed in (42, 43, 44)
-    ])
+    parser.add_argument("--configs", nargs="+",
+                        default=["configs/gro_first/ml1m_sasrec_seed42.json"],
+                        help="configuration files; defaults to seed 42 only")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--defenses", nargs="+", choices=["none", "gro"])
     parser.add_argument("--attacks", nargs="+", choices=["random", "dfme", "become"],

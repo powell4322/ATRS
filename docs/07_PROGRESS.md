@@ -15,9 +15,9 @@
 
 1. 完成论文配置、固定作者源码和当前代码的逐项核查，冻结 Full Ranking 与 clean-reference Agreement。
 2. 本地执行必要的软件测试与小目录 smoke，验证 Random/DFME/BECOME、GRO、checkpoint、scheduler 与导出接口。
-3. 按用户确认先完成 ML-1M + SASRec 的 GRO，1000 条名义序列、正常轮次，逐步完成三种子。None 的攻击格暂缓，基础教师仍需训练。
+3. 按用户确认先完成 ML-1M + SASRec 的 GRO，仅 seed 42，1000 条名义序列、正常轮次。None 的攻击格暂缓，基础教师仍需训练。
 4. 按攻击分别检查 Target 效用、Surrogate 指标、Agreement 与预算账本，再依据理论诊断推进 Ours。
-5. Ours 固定后完成同协议的对应 cell。数据和模型适配完成后再执行已冻结的 Beauty/Steam 与 BERT4Rec。
+5. Ours 方案完成并观察到单种子结果后，再决定多种子复测和更多实验。Beauty/Steam 与 BERT4Rec 保留为已冻结的后续范围。
 
 正式主矩阵维持 04 的范围。理论机制实验是研究诊断，按各自科学问题记录，不要求把每个候选都加入主矩阵。
 
@@ -35,6 +35,7 @@
 | ML-1M 正式配置 | 已生成，纸面参数与来源在 03 |
 | 主评价 clean-reference / Recall / protected-output 接口 | 已接入，12 项本地单元测试与 smoke 通过 |
 | 正式服务器入口 | 完整配置直接执行，可接续教师，复用身份一致的已完成 cell |
+| 当前执行范围 | 默认仅 seed 42 的 GRO 三格；seed 43/44 不自动运行 |
 | 服务器环境初始化 | setup.sh 仅安装本项目，复用镜像预装依赖 |
 | 正式 GPU 实验 | pending，仓库中尚无正式指标 |
 
@@ -49,8 +50,8 @@
 | Seed | None | GRO | Ours |
 | --- | --- | --- | --- |
 | 42 | 暂缓 | pending | 稍后确定 |
-| 43 | 暂缓 | pending | 稍后确定 |
-| 44 | 暂缓 | pending | 稍后确定 |
+| 43 | 后续再考虑 | 后续再考虑 | 后续再考虑 |
+| 44 | 后续再考虑 | 后续再考虑 | 后续再考虑 |
 
 真实完成后由日志与结果 manifest 更新进度，数值统一放入 [08 结果与分析](08_RESULTS.md)。
 
@@ -76,3 +77,5 @@ gro_first 的基础教师和 GRO 最大 1000 epochs，patience=30。Random/DFME 
 | G5 / C1 | 计算是否可部署 | 缓存、上下文近似，必要时学习合法防御排序 |
 
 每个 gate 的统计阈值和样本规模为 TBD。若 A、B 中只有一支显示稳定信号，沿该支推进。若精确价值有效但近似无效，先改进估计。若匹配随机编辑持续更好，复查候选空间、参考损失和假设。
+
+本节保留机制研究路线，当前不会自动批量执行。候选方案、已实现代码、未修改部分及可供其他研究者或 AI 讨论的问题集中在 [09 评审清单](09_IMPLEMENTATION_AND_TBD.md)。

@@ -18,7 +18,7 @@
 | GRO | 论文 Eq. (4)–(6)，BERT4Rec 设置；当前代码为独立 SASRec 迁移实现，官方源码等价性 TBD |
 | ATRS 历史配置 | configs/phase1/ml1m_sasrec_seed42.json，保留以供追溯 |
 | ATRS 正式配置 | configs/formal/ml1m_sasrec_seed42.json、seed43.json、seed44.json |
-| 当前 GRO 首轮配置 | configs/gro_first/ml1m_sasrec_seed42.json、seed43.json、seed44.json，仅选择 GRO 攻击格 |
+| 当前 GRO 首轮配置 | 默认仅 configs/gro_first/ml1m_sasrec_seed42.json；seed43/44 保留供后续复测，当前不执行 |
 
 来源链接为 [DFME 论文](https://arxiv.org/abs/2109.01165)、[DFME 固定代码](https://github.com/Yueeeeeeee/RecSys-Extraction-Attack/tree/47f841b708eb25d3aa996aefcbdfba6b713741b3)、[BECOME 论文](https://doi.org/10.1145/3746252.3761032)、[BECOME 固定代码](https://github.com/Loche2/BECOME/tree/83355ef723e16ca826d013c23938f51f0e0b453e)、[GRO 论文](https://arxiv.org/abs/2310.16335)。
 
@@ -93,7 +93,7 @@ BECOME 未明确 warmup。其 §5.1.5 给出 rho_init=0.1、N=8、Gamma=0.5、al
 | GRO swap_weight | 0.01 | 现有 ATRS，保持可追溯工程选择 |
 | Sliding fraction | 0.5 | 官方 utils.py，窗口边界与上游存在细节差异 |
 | norm/bias weight decay 分组、Adam eps | 分组无衰减，eps=1e-8 | 沿用当前实现，两源码的 Adam/AdamW 分支也有分组和 eps 差异 |
-| 种子 | 42、43、44 | 项目执行编号，论文未要求相同编号 |
+| 种子 | 当前仅 42；43、44 保留 | 项目执行编号；探索阶段单种子，多种子复测延后 |
 | Ours 机制与参数 | TBD | 等待研究证据，当前不生成 Ours 指标 |
 
 旧 configs/formal 的 20-epoch 方案保留供追溯。当前 gro_first 的训练轮次独立记录在 configuration_sources，同一攻击跨未来防御条件保持这一轮次规则。真实 test 数值不作为调参依据。

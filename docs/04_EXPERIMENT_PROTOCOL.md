@@ -27,7 +27,7 @@
 | 评价 | Full Ranking，Leave-one-out |
 | 主指标 | Target Recall@10、Target NDCG@10、Surrogate Recall@10、Surrogate NDCG@10、Surrogate Agreement@10 |
 | Agreement 参照 | 同一 seed 的原始未保护 clean Target |
-| 随机性 | 正式三种子，项目运行编号 42、43、44 |
+| 随机性 | 当前探索仅 seed 42；方案完成后再考虑 42、43、44 多种子复测 |
 
 首批执行 ML-1M + SASRec。NARM、Sim4Rec 和异构提取为可选扩展。Reverse、Random Shuffle 与 continued-clean 的旧控制不进入主矩阵。攻击策略作为各自独立的防御压力测试，逐个比较同一攻击在 None、GRO、Ours 下的表现。
 
@@ -35,7 +35,7 @@
 
 ## 正式矩阵和当前可运行部分
 
-完整计划为 3 数据 × 2 架构 × 3 攻击 × 3 防御 × 3 种子，共 162 个 cell，逐阶段实现和执行。首批 ML-1M/SASRec 为每 seed 9 格。
+研究范围维持 3 数据 × 2 架构 × 3 攻击 × 3 防御，每 seed 为 54 个 cell；若后续确认三种子复测，则为 162 格。这是后续覆盖范围，当前不自动展开。ML-1M/SASRec 的完整防御比较为每 seed 9 格。
 
 | Attack | None | GRO | Ours |
 | --- | --- | --- | --- |
@@ -43,7 +43,9 @@
 | DFME | 正式入口已实现 | 正式入口已实现 | 方法与入口 TBD |
 | BECOME | 论文参数与已记录源码冲突的重建入口 | 同一攻击配置 | 方法与入口 TBD |
 
-按最新用户决定，当前启动器选择 ML-1M/SASRec 的 GRO、三个攻击、三个种子，共 9 个 GRO cell。None 的攻击格暂缓，初步改进稍后确定。基础 clean teacher 的训练与保存作为 GRO 起点和主 Agreement 参照继续执行。Beauty/Steam 与 BERT4Rec 的模型和数据入口仍待适配。
+按最新用户决定，当前启动器只选择 ML-1M/SASRec 的 GRO、三个攻击和 seed 42，共 3 个 GRO cell。None 的攻击格暂缓，初步改进稍后确定。基础 clean teacher 的训练与保存作为 GRO 起点和主 Agreement 参照继续执行。多种子及更多实验在方案完成、单种子现象清楚后再决定；Beauty/Steam 与 BERT4Rec 的模型和数据入口仍待适配。
+
+单独 GRO 的指标用于观察受保护模型效用和代理提取程度。缺少同 seed、同攻击的 None 结果时，无法计算 GRO 相对无防御的收益；clean teacher 的效用和参照身份不能代替 None 条件的外部提取实验。保持当前暂缓安排，后续需要判断防御收益时再补这一对照。
 
 <a id="section-3"></a>
 
@@ -79,4 +81,4 @@ GRO 属于训练时防御，其 Target 效用来自实际部署的 GRO teacher�
 
 配置参数采用论文明确值，未公布的值追溯固定官方源码或现有仓库，来源表见 [03](03_CONFIGURATION_AUDIT.md)。无法由两者确认的参数标为 TBD。调整参数要生成新配置和 run_root，不能将历史同名运行当作新设定。原 phase1 配置和正确的旧 baseline 入口保留供回溯。
 
-每次运行自动保存完整配置、seed、源码 SHA、数据 SHA、教师/代理/查询 hash、实际资源与时间，无需手动校验命令。三种子齐全后逐个 Attack × Defense 报均值和样本标准差。None 同时承担正式无防御对照与检查提取效应的作用。正式结果只来自完整数据和正式预算的实际运行。本机软件测试与 CPU smoke 记录在进度页，服务器直接运行正式实验。
+每次运行自动保存完整配置、seed、源码 SHA、数据 SHA、教师/代理/查询 hash、实际资源与时间，无需手动校验命令。当前逐格报告 seed 42 的真实结果，不作跨种子稳定性结论。方案完成后再考虑多种子复测；执行且齐全后逐个 Attack × Defense 报均值和样本标准差。None 同时承担正式无防御对照与检查提取效应的作用。结果只来自完整数据和完整预算的实际运行。本机软件测试与 CPU smoke 记录在进度页，服务器直接运行完整配置。

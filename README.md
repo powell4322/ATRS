@@ -13,7 +13,7 @@
 | 环境配置、正式运行和本机检查 | [06 运行命令](docs/06_COMMANDS.md) |
 | 进度、真实结果和待确认项 | [07 进度](docs/07_PROGRESS.md)、[08 结果](docs/08_RESULTS.md)、[09 待确认](docs/09_IMPLEMENTATION_AND_TBD.md) |
 
-当前首轮配置位于 configs/gro_first，ML-1M + SASRec、1000 条名义序列、正常训练轮次、三种子。用户已确认先完成 GRO × Random/DFME/BECOME，None 的攻击格暂缓，初步改进方案之后确定。基础 clean teacher 仍作为 GRO 预训练和 Agreement 参照。完整计划及扩展入口见 04/09。
+当前首轮配置位于 configs/gro_first，ML-1M + SASRec、1000 条名义序列、正常训练轮次，仅运行 seed 42。先完成 GRO × Random/DFME/BECOME 三格，优先检查单种子现象；实验方案完成后再考虑多种子复测。None 的攻击格暂缓，初步改进方案之后确定。基础 clean teacher 仍作为 GRO 预训练和 Agreement 参照。理论、代码现状及外部评审问题集中在 [09](docs/09_IMPLEMENTATION_AND_TBD.md)。
 
 Git 只跟踪 data 下 ML-1M、Beauty、Steam 三个文本。正式结果主表为 Full Ranking 的 Recall@10、NDCG@10、clean-reference Agreement@10。指定实例的项目默认放在 ~/workspace/ATRS，复用预装依赖，直接运行正式实验。本机执行软件检查，服务器不做 smoke。checkpoint、查询与日志保存在项目 runs 内。
 

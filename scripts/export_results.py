@@ -167,15 +167,12 @@ def write_formal_report(report: Path, archive_root: Path) -> None:
         values = " | ".join(f"{protected[section][name] - clean[section][name]:+.6f}"
                             for section, name in measurements)
         lines.append(f"| {seed} | {attack} | GRO − None | {values} |")
-    lines.extend(["", "## 三种子汇总", "",
-                  "| Attack | Defense | 完成种子数 | Target Recall@10 | Target NDCG@10 | Surrogate Recall@10 | Surrogate NDCG@10 | Agreement@10 |",
-                  "| --- | --- | ---: | --- | --- | --- | --- | --- |"])
+    summaries = []
     for attack in ("random", "dfme", "become"):
         for defense in dict.fromkeys(result["defense"] for _, result in rows):
             group = [result for _, result in rows if result["attack"] == attack and result["defense"] == defense]
             seeds = {result["seed"] for result in group}
             if seeds != {42, 43, 44} or len(group) != 3:
-                lines.append(f"| {attack} | {defense} | {len(seeds)} | pending | pending | pending | pending | pending |")
                 continue
             if len({result["git_commit"] for result in group}) != 1:
                 raise ValueError("three-seed aggregation requires a common source commit")
@@ -183,7 +180,11 @@ def write_formal_report(report: Path, archive_root: Path) -> None:
             for section, metric in measurements:
                 values = [result[section][metric] for result in group]
                 statistics_cells.append(f"{statistics.mean(values):.6f} ± {statistics.stdev(values):.6f}")
-            lines.append(f"| {attack} | {defense} | 3 | " + " | ".join(statistics_cells) + " |")
+            summaries.append(f"| {attack} | {defense} | 3 | " + " | ".join(statistics_cells) + " |")
+    if summaries:
+        lines.extend(["", "## 三种子汇总", "",
+                      "| Attack | Defense | 完成种子数 | Target Recall@10 | Target NDCG@10 | Surrogate Recall@10 | Surrogate NDCG@10 | Agreement@10 |",
+                      "| --- | --- | ---: | --- | --- | --- | --- | --- |", *summaries])
     lines.extend(["", "## 资源记录", "",
                   "资源用于审查同一攻击在不同防御下的消耗。", "",
                   "| Seed | Attack | Defense | 名义序列 | 不同原始前缀 | 不同模型上下文 | 逻辑请求 | 反馈行 | 新 API 请求 | 训练步数 |",
@@ -195,7 +196,7 @@ def write_formal_report(report: Path, archive_root: Path) -> None:
                      f"{counts['unique_model_contexts']} | {counts['requested_prefixes']} | "
                      f"{counts['feedback_prefixes']} | {counts['oracle_requests']} | {result['training_steps']} |")
     lines.extend(["", "## 分析要求", "",
-                  "三种子齐全后，逐个 Attack × Defense 汇总均值和样本标准差。"
+                  "探索阶段逐个 seed 记录结果，多种子复测由后续研究进度决定；仅对齐全的三种子组汇总均值和样本标准差。"
                   "同时检查 Target 效用、None 下的提取信号、实际预算与 checkpoint 谱系。"
                   "本页尚未提供跨种子的统计显著性判断。", ""])
     report.parent.mkdir(parents=True, exist_ok=True)

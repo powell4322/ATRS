@@ -28,7 +28,7 @@ bash setup.sh
 python -u scripts/run_formal.py
 ```
 
-默认使用 configs/gro_first，按 seed 42、43、44 运行 ML-1M + SASRec 的 GRO × Random/DFME/BECOME，共九格，采用正常训练轮次。入口自动训练基础 clean teacher 和 GRO，并导出结果。None 攻击格暂缓，改进方案稍后确定。
+默认只使用 configs/gro_first/ml1m_sasrec_seed42.json，运行 ML-1M + SASRec 的 GRO × Random/DFME/BECOME，共三格，采用正常训练轮次。入口自动训练基础 clean teacher 和 GRO，并导出结果。None 攻击格暂缓，改进方案稍后确定；多种子复测等方案完成后再考虑，当前不会启动 seed 43/44。
 
 服务器直接运行正式实验，不执行 smoke。
 

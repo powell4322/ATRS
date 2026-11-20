@@ -101,6 +101,10 @@ def test_formal_results_require_clean_reference_and_support_nominal_budgets(tmp_
     partial = json.loads((archive / "manifest.json").read_text(encoding="utf-8"))
     assert len(partial["cells"]) == 3
     assert {cell["defense"] for cell in partial["cells"]} == {"gro"}
+    exploratory = report.read_text(encoding="utf-8")
+    assert "| 42 | random | gro |" in exploratory
+    assert "## 三种子汇总" not in exploratory
+    assert "pending" not in exploratory
     export_results.publish(config_path, report, archive)
     assert "Agreement@10" in report.read_text(encoding="utf-8")
     assert "200000" in report.read_text(encoding="utf-8")
