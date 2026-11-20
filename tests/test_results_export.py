@@ -97,6 +97,10 @@ def test_formal_results_require_clean_reference_and_support_nominal_budgets(tmp_
         (source / f"{defense}_{attack}.json").write_text(json.dumps(result), encoding="utf-8")
     report = tmp_path / "docs/08_RESULTS.md"
     archive = tmp_path / "result/formal/ml1m_sasrec_seed42"
+    export_results.publish(config_path, report, archive, defenses=["gro"])
+    partial = json.loads((archive / "manifest.json").read_text(encoding="utf-8"))
+    assert len(partial["cells"]) == 3
+    assert {cell["defense"] for cell in partial["cells"]} == {"gro"}
     export_results.publish(config_path, report, archive)
     assert "Agreement@10" in report.read_text(encoding="utf-8")
     assert "200000" in report.read_text(encoding="utf-8")

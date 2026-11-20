@@ -43,7 +43,7 @@
 | DFME | 正式入口已实现 | 正式入口已实现 | 方法与入口 TBD |
 | BECOME | 论文参数与已记录源码冲突的重建入口 | 同一攻击配置 | 方法与入口 TBD |
 
-当前正式启动器执行可用的 18 格，即 ML-1M/SASRec 的 None/GRO、三个攻击、三个种子。生成的结果页明确列出 Ours 待完成。Beauty/Steam 与 BERT4Rec 的模型和数据入口仍待适配。
+按最新用户决定，当前启动器选择 ML-1M/SASRec 的 GRO、三个攻击、三个种子，共 9 个 GRO cell。None 的攻击格暂缓，初步改进稍后确定。基础 clean teacher 的训练与保存作为 GRO 起点和主 Agreement 参照继续执行。Beauty/Steam 与 BERT4Rec 的模型和数据入口仍待适配。
 
 <a id="section-3"></a>
 

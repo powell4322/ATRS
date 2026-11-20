@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import torch
@@ -187,7 +188,8 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
                     negative_sampling: str = "outside_topk", negatives_per_positive: int | None = None,
                     final_phase_epochs: int | None = None, terminal_holdout: bool = False,
                     frequency_policy: str = "sampling_events",
-                    phase_rounding: str = "floor") -> tuple[list[Sample], list[float]]:
+                    phase_rounding: str = "floor",
+                    progress: Callable[[dict], None] | None = None) -> tuple[list[Sample], list[float]]:
     """Feedback phases, low-agreement selection, and rank/frequency sampling.
 
     Phase lengths follow the configured absolute normal draw. Formal configs
@@ -219,10 +221,10 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
         return _frequency_choice(ranking, frequencies, rng, alpha,
                                  observe=frequency_policy == "sampling_events")
 
-    def train(epochs):
+    def train(epochs, phase):
         terminals = {tuple(sequence) for sequence in sequences}
         training = [sample for sample in samples if sample.prefix not in terminals] if terminal_holdout else samples
-        for _ in range(epochs):
+        for epoch in range(epochs):
             losses.append(distill_epoch(
                 student, optimizer, training, "become", batch_size=batch_size,
                 device=device, rng=rng, margin_rank=margin_rank, margin_neg=margin_neg, beta=beta,
@@ -230,6 +232,9 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
                                         else max(1, (n_items - oracle.k) // oracle.k)),
                 negative_sampling=negative_sampling,
             ))
+            if progress is not None:
+                progress({"phase": phase, "epoch": epoch + 1, "epochs": epochs,
+                          "loss": losses[-1], "training_rows": len(training)})
 
     def extend(targets: dict[int, int], cached_rankings: dict[int, list[int]] | None = None) -> None:
         # Start the next phase from the already-labelled terminal prefix.
@@ -251,7 +256,7 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
                     sequences[i].append(choice(ranking))
 
     extend({i: initial_end for i in range(n_sequences)})
-    train(distill_epochs_per_phase)
+    train(distill_epochs_per_phase, 0)
     remaining = sequence_len - initial_end
     if remaining <= 0:
         return samples, losses
@@ -295,7 +300,7 @@ def generate_become(oracle: RankingOracle, student: nn.Module,
             extend(targets, feedback_rankings)
         epochs = (final_phase_epochs if phase_index == len(lengths) - 1 and final_phase_epochs is not None
                   else distill_epochs_per_phase)
-        train(epochs)
+        train(epochs, phase_index + 1)
     if terminal_holdout:
         terminals = {tuple(sequence) for sequence in sequences}
         samples = [sample for sample in samples if sample.prefix not in terminals]

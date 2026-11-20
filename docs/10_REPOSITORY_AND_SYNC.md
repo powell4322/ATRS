@@ -17,13 +17,16 @@
 | --- | --- |
 | docs/00–10 | 每篇一种功能，带编号索引与页内目录 |
 | configs/formal | 正式完整预算及每个 seed，Git 跟踪 |
+| configs/gro_first | 当前 GRO 首轮、正常训练轮次和独立 run_root，Git 跟踪 |
 | configs/phase1 | 旧 20k 集成实验设置，Git 保留供追溯 |
 | src/atrs | 模型、API、攻击、防御、评价和诊断实现，Git 跟踪 |
 | scripts | 正式启动、结果导出、旧矩阵启动与本地 smoke |
 | data/ml-1m.txt、Beauty.txt、Steam.txt | 仅三个冻结数据文件进入 Git，保持字节与 hash |
 | runs/formal | 正式 checkpoint、查询集、日志、resolved_config，保存在网盘 |
+| runs/gro_first | 当前 GRO 首轮 checkpoint、查询和日志，保存在网盘 |
 | runs/research | 理论诊断原始产物，保存在网盘 |
 | result/formal | 已验证的每 cell JSON、配置和 manifest，审查后进入 Git |
+| result/gro_first | 当前 GRO 首轮已完成 cell 的 JSON 与 manifest，审查后进入 Git |
 | result/research | 已审阅的精简诊断 JSON 与原始产物定位，审查后进入 Git |
 | paper、.upstream、.audit | 本地论文、固定作者源码和历史核查，Git 忽略 |
 
@@ -41,7 +44,7 @@
 
 正式启动器按现有 checkpoint 接续 Teacher，读取其优化器、scheduler、随机状态和 early-stop 计数。一个攻击 cell 完成后有结果 JSON、Student 和 query 文件，启动器核对源码、配置、数据与这些文件的 hash 后才跳过该格。攻击中断后重启对应 cell。
 
-导出器审查六个可运行 baseline cell 的一致性，按 seed 归档，聚合已完成种子。Ours 的空缺在结果页保留 pending/TBD。正式实验日志、checkpoint 和数据在释放实例前应确认仍位于网盘挂载路径。
+导出器按配置或命令选择的 cell 审查一致性，支持当前只有 GRO 的结果并保留 clean-reference 身份。按 seed 归档后聚合已完成种子，未执行 None 时等待后续配对比较。正式实验日志、checkpoint 和数据在释放实例前应确认仍位于网盘挂载路径。
 
 <a id="section-4"></a>
 

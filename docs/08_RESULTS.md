@@ -11,7 +11,7 @@
 
 ## 正式结果状态
 
-当前为 pending。首批 ML-1M + SASRec、三种子、1k 名义序列的 None/GRO 尚未在 GPU 上执行。Ours 的方法和实现为 TBD。
+当前为 pending。用户确认首轮只完成 ML-1M + SASRec 的 GRO、三种子、1k 名义序列和正常训练轮次。None 的攻击格暂缓，Ours 的方法稍后确定。基础 clean teacher 作为预训练和主 Agreement 的参照仍需训练。
 
 正式报告展示五个主指标，主 Agreement 对照原始 clean Target。论文历史数值和本地软件验证只用于核查资料和实现。
 

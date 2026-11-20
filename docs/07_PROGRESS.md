@@ -15,7 +15,7 @@
 
 1. 完成论文配置、固定作者源码和当前代码的逐项核查，冻结 Full Ranking 与 clean-reference Agreement。
 2. 本地执行必要的软件测试与小目录 smoke，验证 Random/DFME/BECOME、GRO、checkpoint、scheduler 与导出接口。
-3. 在矩池云直接执行 ML-1M + SASRec 的正式 None/GRO，1000 条名义序列、三种子。None 提供无防御基准和提取效果的测量。
+3. 按用户确认先完成 ML-1M + SASRec 的 GRO，1000 条名义序列、正常轮次，逐步完成三种子。None 的攻击格暂缓，基础教师仍需训练。
 4. 按攻击分别检查 Target 效用、Surrogate 指标、Agreement 与预算账本，再依据理论诊断推进 Ours。
 5. Ours 固定后完成同协议的对应 cell。数据和模型适配完成后再执行已冻结的 Beauty/Steam 与 BERT4Rec。
 
@@ -31,7 +31,7 @@
 | 作者 Git 版本 | 已核对固定 HEAD 与远端一致 |
 | 三数据文件 hash、密集 ID 与用户长度 | 已扫描 |
 | ML-1M 正式配置 | 已生成，纸面参数与来源在 03 |
-| 主评价 clean-reference / Recall / protected-output 接口 | 已接入，11 项本地单元测试与原 smoke 通过 |
+| 主评价 clean-reference / Recall / protected-output 接口 | 已接入，12 项本地单元测试与 smoke 通过 |
 | 正式服务器入口 | 完整配置直接执行，可接续教师，复用身份一致的已完成 cell |
 | 正式 GPU 实验 | pending，仓库中尚无正式指标 |
 
@@ -45,11 +45,15 @@
 
 | Seed | None | GRO | Ours |
 | --- | --- | --- | --- |
-| 42 | pending | pending | TBD |
-| 43 | pending | pending | TBD |
-| 44 | pending | pending | TBD |
+| 42 | 暂缓 | pending | 稍后确定 |
+| 43 | 暂缓 | pending | 稍后确定 |
+| 44 | 暂缓 | pending | 稍后确定 |
 
 真实完成后由日志与结果 manifest 更新进度，数值统一放入 [08 结果与分析](08_RESULTS.md)。
+
+gro_first 的基础教师和 GRO 最大 1000 epochs，patience=30。Random/DFME 固定 1000 epochs，BECOME 保持 20/30 的阶段训练。日志已补充外部代理的每 epoch 损失、阶段、训练步数与时间。单独完成 GRO 后即可导出，不依赖 None 结果文件。
+
+本地还完成了当前启动器的临时数据演练，确认会训练基础教师、跳过全部 None 攻击格、完成 GRO 三格并导出，重复启动会复用已完成结果。下一项打分改为只投影最后一个隐状态，测试确认其分数和参数梯度与完整 forward 的最后位置一致。
 
 <a id="section-4"></a>
 

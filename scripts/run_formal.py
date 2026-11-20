@@ -56,9 +56,12 @@ def complete_result(path: Path, config: dict, defense: str, attack: str) -> bool
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configs", nargs="+", default=[
-        f"configs/formal/ml1m_sasrec_seed{seed}.json" for seed in (42, 43, 44)
+        f"configs/gro_first/ml1m_sasrec_seed{seed}.json" for seed in (42, 43, 44)
     ])
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--defenses", nargs="+", choices=["none", "gro"])
+    parser.add_argument("--attacks", nargs="+", choices=["random", "dfme", "become"],
+                        default=["random", "dfme", "become"])
     args = parser.parse_args()
     os.chdir(ROOT)
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
@@ -79,13 +82,20 @@ def main() -> None:
         (logs / "environment.json").write_text(json.dumps(environment, indent=2), encoding="utf-8")
         command = [sys.executable, "-u", "-m", "atrs.cli"]
         common = ["--config", filename, "--device", args.device]
-        for defense in config["runnable_defenses"]:
+        defenses = list(dict.fromkeys(args.defenses or config["runnable_defenses"]))
+        attacks = list(dict.fromkeys(args.attacks))
+        if "none" not in defenses:
+            print("clean teacher is a shared training/reference prerequisite; None attack cells are deferred",
+                  flush=True)
+        for defense in dict.fromkeys(["none", *defenses]):
             checkpoint = root / "checkpoints" / f"teacher_{defense}.pt"
             training = command + ["train-teacher", *common, "--defense", defense]
             if checkpoint.exists():
                 training.append("--resume")
             run_logged(training, logs / f"console-teacher-{defense}.log")
-            for attack in ("random", "dfme", "become"):
+            if defense not in defenses:
+                continue
+            for attack in attacks:
                 result = root / "results" / f"{defense}_{attack}.json"
                 if complete_result(result, config, defense, attack):
                     print(f"reuse completed cell: {result}", flush=True)
@@ -93,7 +103,8 @@ def main() -> None:
                 run_logged(command + ["run-attack", *common, "--defense", defense, "--attack", attack],
                            logs / f"console-{defense}-{attack}.log")
         publish(ROOT / filename, ROOT / "docs/08_RESULTS.md",
-                ROOT / "result/formal" / Path(filename).stem)
+                ROOT / "result" / Path(filename).parent.name / Path(filename).stem,
+                defenses=defenses, attacks=attacks)
 
 
 if __name__ == "__main__":

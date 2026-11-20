@@ -134,6 +134,19 @@ def test_protected_target_utility_uses_the_returned_ranking(tmp_path):
     assert protected["recall@10"] == protected["ndcg@10"] == 0.0
 
 
+def test_next_scores_preserves_full_forward_values_and_gradients():
+    torch.manual_seed(11)
+    model = SASRec(12, max_len=5, hidden=8, layers=1, heads=2, dropout=0).eval()
+    tokens = torch.tensor([[0, 0, 1, 2, 3], [0, 4, 5, 6, 7]])
+    full = model(tokens)[:, -1, :]
+    last_only = model.next_scores(tokens)
+    torch.testing.assert_close(last_only, full)
+    expected = torch.autograd.grad(full.square().mean(), tuple(model.parameters()))
+    actual = torch.autograd.grad(last_only.square().mean(), tuple(model.parameters()))
+    for found, wanted in zip(actual, expected):
+        torch.testing.assert_close(found, wanted)
+
+
 def test_exported_query_dataset_has_stable_checksum(tmp_path):
     samples = [Sample((1, 2), (4, 3, 2)), Sample((2, 4), (1, 5, 6))]
     first = _save_queries(tmp_path / "a.jsonl.gz", samples)

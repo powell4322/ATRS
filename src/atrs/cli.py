@@ -257,6 +257,13 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                            batch_size=api["batch_size"], cache=api.get("cache", True), device=device)
     rng = random.Random(config["seed"] + 3001)
     start = time.perf_counter()
+
+    def log_progress(values):
+        record = {"event": "attack_epoch", "defense": defense, "attack": attack,
+                  "seed": config["seed"], "training_steps": training_steps,
+                  "seconds": time.perf_counter() - start, **values}
+        append_jsonl(run_root / "logs" / f"student_{defense}_{attack}.jsonl", record)
+        print(json.dumps(record, ensure_ascii=False), flush=True)
     if attack in {"random", "dfme"}:
         generator = generate_random if attack == "random" else generate_dfme
         samples = generator(oracle, n_sequences=settings["n_sequences"],
@@ -268,13 +275,17 @@ def _run_attack(config: dict, split, defense: str, attack: str,
             total_steps = settings["epochs"] * ((len(samples) + settings["batch_size"] - 1) // settings["batch_size"])
             scheduler = linear_warmup_decay(optimizer, warmup_steps=settings["warmup_steps"],
                                             total_steps=total_steps)
-        losses = [distill_epoch(student, optimizer, samples, attack,
-                               batch_size=settings["batch_size"], device=device,
-                               rng=rng, margin_rank=settings["margin_rank"],
-                               margin_neg=settings["margin_neg"], beta=None,
-                               negative_sampling=settings.get("negative_sampling", "outside_topk"),
-                               scheduler=scheduler)
-                  for _ in range(settings["epochs"])]
+        losses = []
+        for epoch in range(settings["epochs"]):
+            losses.append(distill_epoch(
+                student, optimizer, samples, attack,
+                batch_size=settings["batch_size"], device=device, rng=rng,
+                margin_rank=settings["margin_rank"], margin_neg=settings["margin_neg"], beta=None,
+                negative_sampling=settings.get("negative_sampling", "outside_topk"),
+                scheduler=scheduler,
+            ))
+            log_progress({"phase": None, "epoch": epoch + 1, "epochs": settings["epochs"],
+                          "loss": losses[-1], "training_rows": len(samples)})
     elif attack == "become":
         samples, losses = generate_become(oracle, student, optimizer,
                                           n_sequences=settings["n_sequences"],
@@ -288,6 +299,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                                           batch_size=settings["batch_size"], device=device,
                                           margin_rank=settings["margin_rank"],
                                           margin_neg=settings["margin_neg"], beta=settings["beta"],
+                                          progress=log_progress,
                                           **{key: settings[key] for key in (
                                               "phase_mean", "phase_std", "feedback_k",
                                               "negative_sampling", "negatives_per_positive",
@@ -349,7 +361,7 @@ def _run_attack(config: dict, split, defense: str, attack: str,
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["preprocess", "train-teacher", "run-attack"])
-    parser.add_argument("--config", default="configs/formal/ml1m_sasrec_seed42.json")
+    parser.add_argument("--config", default="configs/gro_first/ml1m_sasrec_seed42.json")
     parser.add_argument("--defense", choices=["none", "gro", "continued-clean"])
     parser.add_argument("--attack", choices=["random", "dfme", "become"])
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")

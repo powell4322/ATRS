@@ -18,6 +18,7 @@
 | GRO | 论文 Eq. (4)–(6)，BERT4Rec 设置；当前代码为独立 SASRec 迁移实现，官方源码等价性 TBD |
 | ATRS 历史配置 | configs/phase1/ml1m_sasrec_seed42.json，保留以供追溯 |
 | ATRS 正式配置 | configs/formal/ml1m_sasrec_seed42.json、seed43.json、seed44.json |
+| 当前 GRO 首轮配置 | configs/gro_first/ml1m_sasrec_seed42.json、seed43.json、seed44.json，仅选择 GRO 攻击格 |
 
 来源链接为 [DFME 论文](https://arxiv.org/abs/2109.01165)、[DFME 固定代码](https://github.com/Yueeeeeeee/RecSys-Extraction-Attack/tree/47f841b708eb25d3aa996aefcbdfba6b713741b3)、[BECOME 论文](https://doi.org/10.1145/3746252.3761032)、[BECOME 固定代码](https://github.com/Loche2/BECOME/tree/83355ef723e16ca826d013c23938f51f0e0b453e)、[GRO 论文](https://arxiv.org/abs/2310.16335)。
 
@@ -84,9 +85,9 @@ BECOME 未明确 warmup。其 §5.1.5 给出 rho_init=0.1、N=8、Gamma=0.5、al
 | Embedding dimension | 64 | 两官方 utils.py set_template，当前 SASRec 配置 |
 | Teacher 最大 epochs | 1000 | 两官方 set_template，沿用现有值 |
 | Teacher patience | 30 | 现有 ATRS 配置，论文与官方训练循环未给相同 early stopping |
-| GRO / continued-clean 追加 epochs | 20 | 现有 ATRS，GRO 原始实验的精确调度 TBD |
+| GRO 追加 epochs | 最多 1000，patience=30 | 当前用户要求正常轮次；论文继续训练至收敛，1000 为本项目上限，原论文具体轮数 TBD |
 | GRO 追加训练 scheduler / warmup | constant / 0 | 现有 ATRS 追加训练行为，在正式 JSON 单独显式记录 |
-| Random / DFME Surrogate epochs | 20 | 现有 ATRS 配置，官方模板为 1000，论文未明确。正式固定这一已有值，收敛充分性待 None 的预定训练曲线检查 |
+| Random / DFME Surrogate epochs | 1000 | 当前 gro_first 恢复作者模板的正常轮次，原论文未明确数值 |
 | Surrogate checkpoint | 固定训练后的末权重 | 沿用现有实现，选择过程不读取真实 valid/test |
 | GRO rank/negative/swap margin | 0.5/0.5/0.5 | 现有 ATRS，GRO 原始超参数精确对应 TBD |
 | GRO swap_weight | 0.01 | 现有 ATRS，保持可追溯工程选择 |
@@ -95,7 +96,7 @@ BECOME 未明确 warmup。其 §5.1.5 给出 rho_init=0.1、N=8、Gamma=0.5、al
 | 种子 | 42、43、44 | 项目执行编号，论文未要求相同编号 |
 | Ours 机制与参数 | TBD | 等待研究证据，当前不生成 Ours 指标 |
 
-如果 20 轮代理训练不足，下一版应先以合成数据上的固定准则确定训练 schedule，形成新版本后对该攻击的全部防御条件一起执行。真实 test 数值不作为调参依据。
+旧 configs/formal 的 20-epoch 方案保留供追溯。当前 gro_first 的训练轮次独立记录在 configuration_sources，同一攻击跨未来防御条件保持这一轮次规则。真实 test 数值不作为调参依据。
 
 <a id="section-4"></a>
 

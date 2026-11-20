@@ -40,7 +40,7 @@
 
 单个正式运行以指定 JSON 为准，日志保存配置 hash 和 resolved_config。CLI 的 device、resume 只控制运行位置和接续。正式模式拒绝 epochs 的临时覆盖，改变训练轮数需形成新配置。配置内的论文明确值优先于历史程序默认值，论文未写出的项由 configuration_sources 指向固定源码或旧配置。
 
-每份正式配置带 seed，分别绑定 run_root。研究探针的独立诊断 seed 不改动教师 seed。默认正式启动器按 42、43、44 执行，单配置执行适合分配不同 GPU 或接续某个 seed。同一个 run_root 的同名任务按串行运行。
+每份配置带 seed，分别绑定 run_root。研究探针的独立诊断 seed 不改动教师 seed。默认启动器现在读取 gro_first 的 42、43、44，仅选择 GRO 的攻击格。单配置执行适合先完成一个完整 seed，或分配不同 GPU。同一个 run_root 的同名任务按串行运行。
 
 <a id="section-4"></a>
 
@@ -54,7 +54,7 @@
 | 04 | BECOME 源码逐值等价 | 当前按论文参数重建，alpha/beta/频次/采样与源码冲突保留；批内选择和 RNG 的精确 parity 待核 |
 | 05 | BECOME 论文 j 与负采样候选池解释 | 正式暂按源码 30 negatives/positive、source_softmax；纸面解释待作者或进一步证据 |
 | 06 | 原论文缺失的训练时长、早停与 GRO 超参数 | 已记录的仓库值用于当前执行，原论文对应值标 TBD |
-| 07 | 20 epoch DFME/Random 的训练充分性 | 继承已有固定设置，检查预定训练曲线；改版时统一该攻击的全部防御条件 |
+| 07 | 正常轮次与实际训练收敛 | gro_first 恢复 DFME/Random 1000；GRO 最多1000且 patience30，原论文固定 GRO 轮数未发表 |
 | 08 | Ours 的最终机制、约束和超参数 | A/B/C 是候选，先由理论诊断与正式基线提供证据 |
 | 09 | 随机保护接口的缓存/重复查询行为 | 当前冻结 teacher 确定性缓存可用，Ours 随机输出时需重新定义 |
 | 10 | Ours 推理输出的历史过滤与长度 | 已提供 ranking_api 评价接口，最终保护列表的协议还需固定 |

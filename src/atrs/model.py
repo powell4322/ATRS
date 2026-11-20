@@ -104,7 +104,7 @@ class SASRec(nn.Module):
         return self.encode(tokens) @ self.item.weight.T
 
     def next_scores(self, tokens: torch.Tensor) -> torch.Tensor:
-        return self.forward(tokens)[:, -1, :]
+        return self.encode(tokens)[:, -1, :] @ self.item.weight.T
 
     def bce_loss(self, tokens: torch.Tensor, positives: torch.Tensor,
                  negatives: torch.Tensor) -> torch.Tensor:
