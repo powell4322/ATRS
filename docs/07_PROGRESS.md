@@ -21,6 +21,8 @@
 
 正式主矩阵维持 04 的范围。理论机制实验是研究诊断，按各自科学问题记录，不要求把每个候选都加入主矩阵。
 
+最新部署流程使用指定实例的 ~/workspace/ATRS 容器本地目录，复用预装 PyTorch，通过 SSH 和 tmux 运行。首次部署在服务器显式执行 CUDA smoke，再开始正式任务。轻量结果取回本地后进入 Git，大产物经 SCP 和 SHA-256 校验备份，实例由用户手动释放。
+
 <a id="section-2"></a>
 
 ## 已完成的软件与资料工作
@@ -33,6 +35,7 @@
 | ML-1M 正式配置 | 已生成，纸面参数与来源在 03 |
 | 主评价 clean-reference / Recall / protected-output 接口 | 已接入，12 项本地单元测试与 smoke 通过 |
 | 正式服务器入口 | 完整配置直接执行，可接续教师，复用身份一致的已完成 cell |
+| 服务器环境初始化 | setup.sh 检查预装环境、安装本项目并调用现有 preprocess |
 | 正式 GPU 实验 | pending，仓库中尚无正式指标 |
 
 本地临时目录完成了正式配置 schema 的六格 CLI 验证，覆盖 Adam、warmup checkpoint 接续、Random/DFME/BECOME 与 paper-sum GRO、clean-reference 指标及导出。使用的是本地玩具目录，产物已在测试结束后丢弃。服务器按完整真实数据直接运行正式配置。

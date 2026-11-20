@@ -37,7 +37,7 @@ ML-1M 留一后为 987531 个 train 事件，6040 个 valid 和 6040 个 test。
 
 两个作者仓库都在 datasets 子目录提供下载和预处理。ML-1M 读取 GroupLens ratings.dat，Beauty 读取 SNAP ratings_Beauty.csv，Steam 读取 UCSD steam_reviews.json.gz。预处理执行 item/user 频次过滤、密集 ID 映射，再按 timestamp 和 item ID 排序并留一，缓存为含 train/val/test/umap/smap 的 dataset.pkl。原配置 min_uc=min_sc=5。这里的单次过滤顺序和任意 set 迭代重映射也可能影响与已有文本的字节一致性。 [DFME datasets](https://github.com/Yueeeeeeee/RecSys-Extraction-Attack/tree/47f841b708eb25d3aa996aefcbdfba6b713741b3/datasets) · [BECOME datasets](https://github.com/Loche2/BECOME/tree/83355ef723e16ca826d013c23938f51f0e0b453e/datasets)
 
-当前正式防御比较直接复用本仓库三份冻结文本，避免每个攻击反复下载和预处理。所有防御条件使用同一文本、同一 split 和目录。需要补原始来源时，下载一次、在网盘缓存原件，再生成有明确映射和 hash 的派生数据版本。
+当前正式防御比较直接复用本仓库三份冻结文本，避免每个攻击反复下载和预处理。所有防御条件使用同一文本、同一 split 和目录。需要补原始来源时，在项目本地下载和缓存原件，再生成有明确映射和 hash 的派生数据版本，通过 SCP 保留本地备份。
 
 <a id="section-3"></a>
 

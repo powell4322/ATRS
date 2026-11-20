@@ -1,6 +1,7 @@
 """Tiny software smoke test; its scores are not experimental evidence."""
 from __future__ import annotations
 
+import argparse
 import math
 import random
 import tempfile
@@ -19,18 +20,23 @@ from atrs.training import SASWindows, load_checkpoint, save_checkpoint, set_seed
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", choices=["cpu", "cuda"],
+                        default="cuda" if torch.cuda.is_available() else "cpu")
+    args = parser.parse_args()
+    if args.device == "cuda" and not torch.cuda.is_available():
+        parser.error("--device cuda requires a working CUDA PyTorch environment")
+    device = args.device
     torch.set_num_threads(2)
     set_seed(7)
-    with tempfile.TemporaryDirectory() as folder:
+    work_root = Path(__file__).resolve().parents[1] / "runs" / "smoke"
+    work_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="check-", dir=work_root) as folder:
         root = Path(folder)
         data = root / "tiny.txt"
         data.write_text("1 1\n1 2\n1 3\n1 4\n1 5\n2 2\n2 3\n2 4\n2 5\n2 6\n", encoding="utf-8")
         split = load_split(data, require_dense_ids=False)
         model = SASRec(6, max_len=4, hidden=8, layers=1, heads=2, dropout=0)
-        if torch.cuda.is_available():
-            device = "cuda"
-        else:
-            device = "cpu"
         model.to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         windows = SASWindows(split, max_len=4)
@@ -90,7 +96,7 @@ def main() -> None:
         for candidate in diagnostics["candidates"]:
             assert math.isclose(candidate["j_lp"], candidate["j_lp_full_jvp"],
                                 abs_tol=1e-4, rel_tol=1e-4)
-        print("smoke passed: data, SASRec, oracle, DFME, BECOME, GRO, checkpoint, evaluation, JVP")
+        print(f"smoke passed on {device}: data, SASRec, oracle, DFME, BECOME, GRO, checkpoint, evaluation, JVP")
 
 
 if __name__ == "__main__":

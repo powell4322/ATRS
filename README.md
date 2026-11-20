@@ -15,6 +15,6 @@
 
 当前首轮配置位于 configs/gro_first，ML-1M + SASRec、1000 条名义序列、正常训练轮次、三种子。用户已确认先完成 GRO × Random/DFME/BECOME，None 的攻击格暂缓，初步改进方案之后确定。基础 clean teacher 仍作为 GRO 预训练和 Agreement 参照。完整计划及扩展入口见 04/09。
 
-Git 只跟踪 data 下 ML-1M、Beauty、Steam 三个文本。正式结果主表为 Full Ranking 的 Recall@10、NDCG@10、clean-reference Agreement@10。checkpoint、查询与详细日志留在 runs，精简结果经审查进入 result。
+Git 只跟踪 data 下 ML-1M、Beauty、Steam 三个文本。正式结果主表为 Full Ranking 的 Recall@10、NDCG@10、clean-reference Agreement@10。指定实例的项目默认放在 ~/workspace/ATRS，复用预装依赖并用 tmux 训练。checkpoint、查询与日志在项目 runs 内，SCP 备份到本地，精简结果经审查进入 Git。
 
 当前无正式 GPU 防御指标。旧 phase1 配置及 baseline 仍保留，具体与论文的差异、工程参数及 TBD 已集中到 03/09。

@@ -6,9 +6,10 @@
 
 - [已冻结的研究选择](#section-1)
 - [当前实现范围](#section-2)
-- [参数优先级](#section-3)
-- [仍待确认](#section-4)
-- [检验边界](#section-5)
+- [理论改进对应代码的边界](#section-3)
+- [参数优先级](#section-4)
+- [仍待确认](#section-5)
+- [检验边界](#section-6)
 
 <a id="section-1"></a>
 
@@ -36,13 +37,25 @@
 
 <a id="section-3"></a>
 
+## 理论改进对应代码的边界
+
+| 方向 | 已有代码 | 后续修改计划需要补充 |
+| --- | --- | --- |
+| A 学习进展 | learning_progress.py 计算 Loss、Gradient-deviation、LP、Exact，包含合法单步候选、完整 JVP 和输出侧近似；research.py 提供 T2–T4 诊断 | 正式保护策略、跨查询 Student 更新、候选优化与正式攻击端到端接入 |
+| B 序列反馈 | feedback_diagnostics.py 的随机尾部替换和双视图；research.py 的 T5 四格与效应分解 | 定向未来查询价值估计、轨迹保护策略与真实统一保护 API |
+| C1 学习进展版 GRO | 理论文档与 GRO baseline 的可复用训练框架 | 当前尚无 C1 正式训练分支，也没有 Ours 实验入口 |
+
+现有理论代码用于机制验证，正式启动器当前执行 GRO baseline。用户将另行制定初步改进的修改计划。
+
+<a id="section-4"></a>
+
 ## 参数优先级
 
 单个正式运行以指定 JSON 为准，日志保存配置 hash 和 resolved_config。CLI 的 device、resume 只控制运行位置和接续。正式模式拒绝 epochs 的临时覆盖，改变训练轮数需形成新配置。配置内的论文明确值优先于历史程序默认值，论文未写出的项由 configuration_sources 指向固定源码或旧配置。
 
 每份配置带 seed，分别绑定 run_root。研究探针的独立诊断 seed 不改动教师 seed。默认启动器现在读取 gro_first 的 42、43、44，仅选择 GRO 的攻击格。单配置执行适合先完成一个完整 seed，或分配不同 GPU。同一个 run_root 的同名任务按串行运行。
 
-<a id="section-4"></a>
+<a id="section-5"></a>
 
 ## 仍待确认
 
@@ -61,7 +74,7 @@
 | 11 | 攻击中断的精确 resume | 当前重启该 cell，教师可 epoch 接续；完整逐请求重放待实现 |
 | 12 | 机制 gate 的统计门槛与超参数搜索范围 | TBD，候选贡献随证据更新 |
 
-<a id="section-5"></a>
+<a id="section-6"></a>
 
 ## 检验边界
 
