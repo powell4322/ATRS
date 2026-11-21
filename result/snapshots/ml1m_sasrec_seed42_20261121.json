@@ -1,0 +1,444 @@
+{
+  "kind": "incomplete_training_snapshot",
+  "review_date": "2026-11-21",
+  "source_archive": "ml1m_sasrec_seed42.zip",
+  "source_environment": {
+    "git_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2",
+    "torch": "2.5.1+cu124",
+    "cuda": "12.4",
+    "device": "cuda",
+    "python": "3.12.3 | packaged by Anaconda, Inc. | (main, May  6 2024, 19:46:43) [GCC 11.2.0]",
+    "command": [
+      "scripts/run_formal.py"
+    ],
+    "gpu": "NVIDIA GeForce RTX 3090"
+  },
+  "source_config": {
+    "dataset": "ml-1m",
+    "backbone": "sasrec",
+    "data_path": "data/ml-1m.txt",
+    "expected_data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
+    "run_root": "runs/gro_first/ml1m_sasrec_seed42",
+    "seed": 42,
+    "model": {
+      "max_len": 200,
+      "hidden": 64,
+      "layers": 2,
+      "heads": 2,
+      "dropout": 0.1,
+      "attention_dropout": 0.1
+    },
+    "training": {
+      "lr": 0.001,
+      "weight_decay": 0.01,
+      "batch_size": 128,
+      "eval_batch_size": 128,
+      "sliding_fraction": 0.5,
+      "clean_epochs": 1000,
+      "finetune_epochs": 1000,
+      "patience": 30,
+      "optimizer": "adam",
+      "scheduler": "linear_warmup_decay",
+      "warmup_steps": 100,
+      "finetune_scheduler": "constant",
+      "finetune_warmup_steps": 0
+    },
+    "gro": {
+      "margin_rank": 0.5,
+      "margin_neg": 0.5,
+      "margin_swap": 0.5,
+      "swap_weight": 0.01,
+      "loss_normalization": "paper_sum"
+    },
+    "api": {
+      "topk": 100,
+      "batch_size": 128,
+      "max_requests": null,
+      "cache": true
+    },
+    "attacks": {
+      "dfme": {
+        "n_sequences": 1000,
+        "sequence_len": 200,
+        "generation_batch_size": 50,
+        "batch_size": 128,
+        "epochs": 1000,
+        "lr": 0.001,
+        "margin_rank": 0.75,
+        "margin_neg": 1.5,
+        "optimizer": "adam",
+        "scheduler": "linear_warmup_decay",
+        "warmup_steps": 100,
+        "negative_sampling": "source_softmax"
+      },
+      "become": {
+        "n_sequences": 1000,
+        "sequence_len": 200,
+        "phases": 8,
+        "initial_fraction": 0.1,
+        "select_fraction": 0.5,
+        "alpha": 0.8,
+        "epochs_per_phase": 20,
+        "batch_size": 128,
+        "lr": 0.001,
+        "margin_rank": 0.75,
+        "margin_neg": 1.5,
+        "beta": 0.5,
+        "final_phase_epochs": 30,
+        "optimizer": "adam",
+        "scheduler": "constant",
+        "warmup_steps": 0,
+        "phase_mean": 0.0,
+        "phase_std": 1.0,
+        "phase_rounding": "round",
+        "feedback_k": 10,
+        "terminal_holdout": true,
+        "frequency_policy": "unique_responses",
+        "negative_sampling": "source_softmax",
+        "negatives_per_positive": 30
+      },
+      "random": {
+        "n_sequences": 1000,
+        "sequence_len": 200,
+        "generation_batch_size": 50,
+        "batch_size": 128,
+        "epochs": 1000,
+        "lr": 0.001,
+        "margin_rank": 0.75,
+        "margin_neg": 1.5,
+        "optimizer": "adam",
+        "scheduler": "linear_warmup_decay",
+        "warmup_steps": 100,
+        "negative_sampling": "source_softmax"
+      }
+    },
+    "protocol": "unified-defense-v1",
+    "schema_version": 2,
+    "evaluation": {
+      "mode": "full",
+      "agreement_reference": "clean",
+      "history_filter": "exclude_seen_restore_target",
+      "k": 10
+    },
+    "runnable_defenses": [
+      "gro"
+    ],
+    "planned_defenses": [
+      "none",
+      "gro",
+      "ours"
+    ],
+    "configuration_sources": {
+      "sequence_dropout_layers_heads_optimizer_lr_weight_decay_batch_margins": "DFME section 5.1 / Table 3; BECOME section 5.1 / Table 2",
+      "teacher_warmup_and_dfme_warmup": "DFME section 5.1.3, 100 steps",
+      "hidden_64_sliding_0.5_teacher_epoch_limit_1000": "both author utils.py set_template",
+      "become_rho_stages_gamma_alpha_beta": "BECOME section 5.1.5",
+      "become_phase_mean_std_20_and_final_30_epochs": "BECOME author trainer/utils.py random_len and trainer/distiller.py train_autoregressive",
+      "negative_sampling": "author calculate_loss, explicit source_softmax behavior, with replacement",
+      "random_generation": "BECOME section 5.1.4, uniform item catalog; DFME ranking distillation",
+      "source_parity": "paper-oriented configuration with documented source conflicts, see docs/03_CONFIGURATION_AUDIT.md",
+      "seeds": "ATRS run identifiers 42,43,44; all three are project choices",
+      "gro_loss_normalization": "GRO Eq. (4), sum over ranked items and then batch mean",
+      "finetune_scheduler": "existing ATRS GRO fine-tuning loop, constant LR and no warmup",
+      "teacher_and_dfme_epoch_limit_1000": "author utils.py set_template num_epochs=1000",
+      "gro_finetune_epoch_limit_1000": "project maximum matching the teacher limit; GRO section 5.4 trains further until convergence, no fixed epoch count published",
+      "teacher_and_gro_patience_30": "existing ATRS validation NDCG early-stop rule, applied to both teacher and GRO",
+      "run_selection": "user requested GRO first, None extraction deferred; clean pretraining/reference retained"
+    },
+    "_config_sha256": "15f6637464d74d0e061f942cefef0c286505f1feca405c1e74891742b8646f76"
+  },
+  "teachers": {
+    "none": {
+      "epochs_recorded": 349,
+      "last_epoch": 349,
+      "best_epoch": 319,
+      "best_validation": {
+        "fold": "valid",
+        "hr@10": 0.13658940397350994,
+        "ndcg@10": 0.06858798668084555,
+        "protocol": "full",
+        "recall@10": 0.13658940397350994,
+        "users": 6040
+      },
+      "recorded_seconds": 2922.8851252398454,
+      "steps_per_epoch": 80,
+      "source_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2"
+    },
+    "gro": {
+      "epochs_recorded": 174,
+      "last_epoch": 174,
+      "best_epoch": 144,
+      "best_validation": {
+        "fold": "valid",
+        "hr@10": 0.13708609271523178,
+        "ndcg@10": 0.06375632982775076,
+        "protocol": "full",
+        "recall@10": 0.13708609271523178,
+        "users": 6040
+      },
+      "recorded_seconds": 2008.374049127102,
+      "steps_per_epoch": 80,
+      "source_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2"
+    }
+  },
+  "attacks": {
+    "gro_random": {
+      "status": "incomplete",
+      "epochs_recorded": 77,
+      "last_record": {
+        "attack": "random",
+        "defense": "gro",
+        "epoch": 77,
+        "epochs": 1000,
+        "event": "attack_epoch",
+        "loss": 0.9273868928384934,
+        "phase": null,
+        "seconds": 4975.138292623218,
+        "seed": 42,
+        "training_rows": 199000,
+        "training_steps": 119735
+      },
+      "recent_epoch_seconds_median": 63.360877038910985,
+      "loss_checkpoints": [
+        {
+          "epoch": 1,
+          "loss": 3.0665708766489552,
+          "training_steps": 1555,
+          "seconds": 96.78574026981369
+        },
+        {
+          "epoch": 10,
+          "loss": 0.9848958806209626,
+          "training_steps": 15550,
+          "seconds": 661.5113740861416
+        },
+        {
+          "epoch": 20,
+          "loss": 0.9477410432226788,
+          "training_steps": 31100,
+          "seconds": 1300.4316897778772
+        },
+        {
+          "epoch": 30,
+          "loss": 0.9372785435995489,
+          "training_steps": 46650,
+          "seconds": 1953.754856210202
+        },
+        {
+          "epoch": 50,
+          "loss": 0.9310284379977505,
+          "training_steps": 77750,
+          "seconds": 3243.292794601992
+        },
+        {
+          "epoch": 70,
+          "loss": 0.9279887436670505,
+          "training_steps": 108850,
+          "seconds": 4530.88254050212
+        },
+        {
+          "epoch": 77,
+          "loss": 0.9273868928384934,
+          "training_steps": 119735,
+          "seconds": 4975.138292623218
+        }
+      ],
+      "loss_by_epoch": [
+        3.0665708766489552,
+        1.5773800726488856,
+        1.3210689704134533,
+        1.2673405822067016,
+        1.1392531844197362,
+        1.0772900191150678,
+        1.0419437421096482,
+        1.0122926573278053,
+        0.9961852525591467,
+        0.9848958806209626,
+        0.9694040405405296,
+        0.9574490214850742,
+        0.9536386090459548,
+        0.9522637054851201,
+        0.9508107167348218,
+        0.9498796581838675,
+        0.9490001728297046,
+        0.9488891807399762,
+        0.9479917828676402,
+        0.9477410432226788,
+        0.946249734473765,
+        0.9433361953094458,
+        0.9414630169653816,
+        0.9402826814789481,
+        0.9400672773839577,
+        0.9397315879726716,
+        0.9395260113611865,
+        0.9385597795918823,
+        0.9384164342542937,
+        0.9372785435995489,
+        0.9365472531395327,
+        0.9357482273862293,
+        0.9348049388054482,
+        0.9348694766832701,
+        0.9345408695303742,
+        0.9342885504198227,
+        0.9340801326791573,
+        0.9340506687041648,
+        0.9336279510301793,
+        0.933469920066392,
+        0.9336033933798983,
+        0.9331755585609142,
+        0.9330585889110995,
+        0.9329419147929962,
+        0.9332696871742175,
+        0.9323699000564035,
+        0.9323311325821463,
+        0.9321312881742643,
+        0.9316150971164274,
+        0.9310284379977505,
+        0.9311051536602989,
+        0.9306567639016645,
+        0.9304425296676121,
+        0.9298403396100476,
+        0.9300057014085089,
+        0.9299381956026869,
+        0.9294512178736868,
+        0.9291805785568581,
+        0.929289991525975,
+        0.9291889815468497,
+        0.9288955924211975,
+        0.9291559663999502,
+        0.92875484182137,
+        0.9288125642626232,
+        0.9286833720575192,
+        0.9286363286604069,
+        0.9280355180191457,
+        0.9278524871807773,
+        0.9281776806165934,
+        0.9279887436670505,
+        0.9279417115775719,
+        0.9278603418846989,
+        0.9276353347723124,
+        0.9273710179942214,
+        0.9273937890383975,
+        0.9275141424304802,
+        0.9273868928384934
+      ]
+    }
+  },
+  "checkpoints": {
+    "teacher_gro.pt": {
+      "epoch": 174,
+      "metadata": {
+        "defense": "gro",
+        "data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
+        "config_sha256": "15f6637464d74d0e061f942cefef0c286505f1feca405c1e74891742b8646f76",
+        "validation_ndcg": 0.06180820967878727,
+        "stale_epochs": 30,
+        "training_steps": 13920,
+        "clean_parent_sha256": "4d61eaee20323dd29881eaf8d7e4660c62be2aa4a58e9b74d28c23b73ac07ece",
+        "clean_parent_epoch": 319,
+        "clean_parent_validation_ndcg": 0.06858798668084555,
+        "git_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2"
+      },
+      "keys": [
+        "cuda_rng",
+        "epoch",
+        "metadata",
+        "model",
+        "model_config",
+        "optimizer",
+        "python_rng",
+        "student",
+        "student_optimizer",
+        "torch_rng"
+      ],
+      "sha256": "6743e3ef703a258410dfe98b3ad4637b7877e73c532b5035e3c99a741c895ff3"
+    },
+    "teacher_gro_best.pt": {
+      "epoch": 144,
+      "metadata": {
+        "defense": "gro",
+        "data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
+        "config_sha256": "15f6637464d74d0e061f942cefef0c286505f1feca405c1e74891742b8646f76",
+        "validation_ndcg": 0.06375632982775076,
+        "stale_epochs": 0,
+        "training_steps": 11520,
+        "clean_parent_sha256": "4d61eaee20323dd29881eaf8d7e4660c62be2aa4a58e9b74d28c23b73ac07ece",
+        "clean_parent_epoch": 319,
+        "clean_parent_validation_ndcg": 0.06858798668084555,
+        "git_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2"
+      },
+      "keys": [
+        "cuda_rng",
+        "epoch",
+        "metadata",
+        "model",
+        "model_config",
+        "optimizer",
+        "python_rng",
+        "student",
+        "student_optimizer",
+        "torch_rng"
+      ],
+      "sha256": "1fe5747f2158bb5f2d909ef9d47ae963d063b61821b29d23cb9692d56eb8d18f"
+    },
+    "teacher_none.pt": {
+      "epoch": 349,
+      "metadata": {
+        "defense": "none",
+        "data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
+        "config_sha256": "15f6637464d74d0e061f942cefef0c286505f1feca405c1e74891742b8646f76",
+        "validation_ndcg": 0.06567100187800579,
+        "stale_epochs": 30,
+        "training_steps": 27920,
+        "git_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2"
+      },
+      "keys": [
+        "cuda_rng",
+        "epoch",
+        "metadata",
+        "model",
+        "model_config",
+        "optimizer",
+        "python_rng",
+        "scheduler",
+        "torch_rng"
+      ],
+      "sha256": "f7195e9da4de898cdf0cfe215a0f5ca5d32aaa9cb67545e6fb5b71a1cee9c105"
+    },
+    "teacher_none_best.pt": {
+      "epoch": 319,
+      "metadata": {
+        "defense": "none",
+        "data_sha256": "b725f3acb3986fe3130bffd1e77a74d182a1f51799567a236dbd60270f95b0a2",
+        "config_sha256": "15f6637464d74d0e061f942cefef0c286505f1feca405c1e74891742b8646f76",
+        "validation_ndcg": 0.06858798668084555,
+        "stale_epochs": 0,
+        "training_steps": 25520,
+        "git_commit": "581e86c237c74e14dcca1cb71fed7c313c45f7d2"
+      },
+      "keys": [
+        "cuda_rng",
+        "epoch",
+        "metadata",
+        "model",
+        "model_config",
+        "optimizer",
+        "python_rng",
+        "scheduler",
+        "torch_rng"
+      ],
+      "sha256": "4d61eaee20323dd29881eaf8d7e4660c62be2aa4a58e9b74d28c23b73ac07ece"
+    }
+  },
+  "absent_artifacts": [
+    "student checkpoint",
+    "saved query dataset",
+    "final attack result JSON",
+    "DFME/BECOME logs"
+  ],
+  "projected_random_1000_epoch_hours": 17.600243621919716,
+  "projected_random_remaining_hours": 16.2450248630319,
+  "scope": "uploaded ZIP only; remote live process and current filesystem were not inspected",
+  "schema_version": 1,
+  "teacher_reuse_check": "local CPU resume completed without training; all four checkpoint bytes unchanged"
+}

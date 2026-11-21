@@ -20,7 +20,8 @@ from .evaluation import evaluate
 from .gro import gro_step
 from .model import SASRec
 from .training import (SASWindows, append_jsonl, git_commit, load_checkpoint,
-                       linear_warmup_decay, save_checkpoint, set_seed, source_optimizer)
+                       linear_warmup_decay, print_epoch_progress, save_checkpoint,
+                       set_seed, source_optimizer)
 
 
 def _configuration(path: str) -> dict:
@@ -154,12 +155,15 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
             for group, lr in zip(optimizer.param_groups, scheduler.get_last_lr()):
                 group["lr"] = lr
     best_ndcg = -1.0
+    best_epoch = 0
     if start_epoch and best_path.exists():
         best_payload = torch.load(best_path, map_location="cpu", weights_only=False)
         best_ndcg = best_payload.get("metadata", {}).get("validation_ndcg", -1.0)
+        best_epoch = best_payload["epoch"]
     if start_epoch and payload["metadata"].get("validation_ndcg", -1.0) > best_ndcg:
         # Recover when the previous process saved latest and stopped before publishing best.
         best_ndcg = payload["metadata"]["validation_ndcg"]
+        best_epoch = start_epoch
         save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=start_epoch,
                         metadata=payload["metadata"], student=local_student, student_optimizer=local_optimizer,
                         scheduler=scheduler)
@@ -209,6 +213,7 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
         improved = validation["ndcg@10"] > best_ndcg
         if improved:
             best_ndcg = validation["ndcg@10"]
+            best_epoch = epoch + 1
             stale_epochs = 0
         else:
             stale_epochs += 1
@@ -223,7 +228,15 @@ def _fit_teacher(config: dict, split, defense: str, run_root: Path,
             save_checkpoint(best_path, model=model, optimizer=optimizer, epoch=epoch + 1,
                             metadata=metadata, student=local_student, student_optimizer=local_optimizer,
                             scheduler=scheduler)
-        print(json.dumps(record, ensure_ascii=False))
+        print_epoch_progress(
+            f"Teacher/{defense}", epoch + 1, count_epochs,
+            {"loss": record["loss"]["total"], "valid R@10": validation["recall@10"],
+             "valid N@10": validation["ndcg@10"]},
+        )
+    status = ("early stop" if settings["patience"] is not None
+              and stale_epochs >= settings["patience"] else "complete")
+    print(f"Teacher/{defense} {status} | best epoch={best_epoch} | valid N@10={best_ndcg:.5f}",
+          flush=True)
 
 
 def _run_attack(config: dict, split, defense: str, attack: str,
@@ -263,7 +276,10 @@ def _run_attack(config: dict, split, defense: str, attack: str,
                   "seed": config["seed"], "training_steps": training_steps,
                   "seconds": time.perf_counter() - start, **values}
         append_jsonl(run_root / "logs" / f"student_{defense}_{attack}.jsonl", record)
-        print(json.dumps(record, ensure_ascii=False), flush=True)
+        label = f"{defense}/{attack}"
+        if values["phase"] is not None:
+            label += f" phase={values['phase']}"
+        print_epoch_progress(label, values["epoch"], values["epochs"], {"loss": values["loss"]})
     if attack in {"random", "dfme"}:
         generator = generate_random if attack == "random" else generate_dfme
         samples = generator(oracle, n_sequences=settings["n_sequences"],
@@ -355,7 +371,12 @@ def _run_attack(config: dict, split, defense: str, attack: str,
     path = run_root / "results" / f"{defense}_{attack}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(json.dumps(result, ensure_ascii=False))
+    print(
+        f"{defense}/{attack} complete | Target R@10={teacher_metrics['recall@10']:.5f} "
+        f"N@10={teacher_metrics['ndcg@10']:.5f} | Surrogate R@10={student_metrics['recall@10']:.5f} "
+        f"N@10={student_metrics['ndcg@10']:.5f} Agr@10={student_metrics['agr@10']:.5f}",
+        flush=True,
+    )
 
 
 def main() -> None:

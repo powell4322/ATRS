@@ -19,7 +19,7 @@
 
 本项目研究课题组自有序列推荐模型在公开数据集、授权离线环境中的主动模型提取防御。攻击者只知道物品 ID 目录，通过合成前缀读取有序 Top-100 ID；不能访问真实用户数据、人气、目标 logits、梯度或内部参数。防御方可以使用自己的训练数据和独立内部 Student，外部提取 Surrogate 与这个 Student 分开初始化和训练。
 
-当前优先做 ML-1M + SASRec，只跑 seed 42、1000 条名义合成序列和正常训练轮次。默认任务是 GRO × Random/DFME/BECOME 三格；None 提取格暂缓。基础 clean teacher 仍需训练，作为 GRO 起点及主 Agreement 的参照。当前没有正式 GPU 结果。单种子探索结束、方法完成后，再考虑多种子和更多实验，不自动启动 seed 43/44。
+当前优先做 ML-1M + SASRec，只跑 seed 42、1000 条名义合成序列。2026-11-21上传快照中的 clean/GRO 教师已早停完成，分别最佳319/144轮，可复用；Random 只到77/1000轮，无最终代理结果。下一默认任务调整为 DFME × None/GRO 两格，Random 后置。代理停止规则先审阅，当前1000轮配置尚未擅自缩短。单种子探索结束、方法完成后，再考虑多种子和更多实验，不自动启动 seed43/44。快照核查与计划见 [07](07_PROGRESS.md)。
 
 后续研究范围保留 ML-1M/Beauty/Steam、SASRec/BERT4Rec、Random/DFME/BECOME 和 None/GRO/Ours。统一 Full Ranking、Leave-one-out，主指标为 Target 与 Surrogate 的 Recall@10、NDCG@10，以及相对原始 clean Target 的 Surrogate Agreement@10。不同攻击各自保留算法机制，同一种攻击跨防御保持配置和预算规则一致。
 
@@ -29,13 +29,13 @@
 
 ## 当前实际运行的防御
 
-当前可运行防御是 **GRO 在 SASRec 上的独立迁移实现**，不是已经实现的新 Ours，也不等于原论文 BERT4Rec 实验的逐值复现。正式启动器只接受 none/gro，当前配置只选择 gro。
+当前可运行防御是 **GRO 在 SASRec 上的独立迁移实现**，不是已经实现的新 Ours，也不等于原论文 BERT4Rec 实验的逐值复现。正式启动器只接受 none/gro，下一默认任务选择两者的 DFME 配对。JSON 保留历史 gro 选择以维持 checkpoint 身份，当前任务选择以启动器参数为准。
 
 [gro.py](../src/atrs/gro.py) 的 gro_step 保留教师推荐 BCE 和独立内部 Student。它把教师 Top-K 写成可求梯度的排名矩阵，用 Student 的 intra/inter 排序损失对矩阵求梯度，逐位置 argmax 得到 replacement，再用交换 margin 项更新教师。教师和 Student 各有优化器；内部 Student 不作为外部提取模型复用。当前正式 GRO 的损失尺度为 item-sum 后 batch-mean。
 
 逐位置 argmax 可能多次选中同一个 replacement，这里是训练目标，不表示实际 API 返回重复 ID。部署仍由教师分数生成唯一 Top-100。未来 C1 若改成选择完整合法列表，需单独约束唯一成员、头部、编辑预算和排序恢复，不能把 GRO 现有训练目标当成已经完成的 C1。
 
-单独 GRO 的结果可以观察教师效用和外部模型的提取程度。它不能给出 GRO 相对 None 的防御收益；主 Agreement 使用 clean teacher，也不能代替无防御条件的外部提取。按当前安排暂缓 None，后续要判断防御收益时仍需同 seed、同攻击的配对对照。
+单独 GRO 的结果可以观察教师效用和外部模型的提取程度。它不能给出 GRO 相对 None 的防御收益；主 Agreement 使用 clean teacher，也不能代替无防御条件的外部提取。本轮据此将 DFME 的配对 None/GRO 提升为下一任务。
 
 <a id="section-3"></a>
 
@@ -46,13 +46,13 @@
 | 类别 | 已有行为与代码位置 | 当前边界 |
 | --- | --- | --- |
 | 正常轮次与当前范围 | [gro_first seed42 配置](../configs/gro_first/ml1m_sasrec_seed42.json)：长度 200、hidden 64、2 层/2 heads、dropout 0.1、batch 128、Adam 0.001/0.01；教师与 GRO 最多 1000 epochs、patience 30；Random/DFME 固定 1000 epochs，BECOME 按原阶段 20/30 训练 | 保持现有正常轮次和 M=1000；当前仅 seed 42 |
-| 分阶段执行 | [run_formal.py](../scripts/run_formal.py)：默认单 seed，先 clean teacher，再 GRO，再三个外部攻击；教师可接续，完整 cell 可复用，自动导出 | None 提取格暂缓；Ours 不在入口选择中；seed43/44 配置仅保留 |
+| 分阶段执行 | [run_formal.py](../scripts/run_formal.py)：默认单 seed，DFME × None/GRO；教师可接续并复用，完整 cell 可复用，自动导出 | 本轮优先最小配对；Ours 不在入口选择中；Random/BECOME 和 seed43/44 不自动启动 |
 | 独立攻击机制 | [attacks.py](../src/atrs/attacks.py)：Random 目录采样、DFME 自回归生成、BECOME 分阶段生成/反馈/选择及各自蒸馏；[cli.py](../src/atrs/cli.py) 传入各自配置 | 没有强制统一损失；BECOME 论文与源码冲突仍按 03 记录，未宣称完全等价 |
 | 优化器与训练状态 | [training.py](../src/atrs/training.py)：source_optimizer、warmup/scheduler、checkpoint 状态；cli.py 的 _fit_teacher/_run_attack | Adam 与旧 AdamW 路径均保留，正式配置显式选择 |
 | GRO baseline | [gro.py](../src/atrs/gro.py)：gro_step，新增 paper_sum 尺度并保留旧 mean 路径 | SASRec 迁移、GRO 原超参数及原仓库等价性仍有 TBD |
 | 统一评价 | [evaluation.py](../src/atrs/evaluation.py)：Full Ranking、历史过滤、Recall/NDCG、clean-reference Agreement、ranking_api 保护输出效用接口 | 评价接口已备妥，尚无正式 Ours 调用它 |
 | 查询账本和数据边界 | [api.py](../src/atrs/api.py) 的 RankingOracle/QueryCounts；[data.py](../src/atrs/data.py) 的 load_split；training.py 的 SASWindows | 正式攻击只读排序，真实标签用于独立评价；不同资源口径分别记录 |
-| 结果与运行简化 | [export_results.py](../scripts/export_results.py) 支持只有 GRO 的单种子归档，单种子不生成等待三种子的空表；[setup.sh](../setup.sh) 仅安装项目 | 本机测试和 CPU smoke，服务器直接跑完整配置；当前尚无真实防御数值 |
+| 结果与运行简化 | [export_results.py](../scripts/export_results.py) 支持所选 cell 的单种子归档；training.py/cli.py 提供简洁 epoch 进度与最终指标，完整记录仍写 JSONL；setup.sh 仅安装项目 | 本机测试和 CPU smoke，服务器直接跑完整配置；教师验证快照独立归档，尚无完整防御数值 |
 | 推理计算 | [model.py](../src/atrs/model.py) 的 next_scores 只投影最后一个隐状态 | 已有测试核对其分数和梯度，属于工程优化 |
 
 <a id="section-4"></a>
@@ -108,7 +108,9 @@ C1 只有在 A 的选列表机制有效、训练能恢复该列表且效用可�
 
 ## 参数优先级与诊断配置差异
 
-单个完整配置运行以指定 JSON 为准。device、resume 只控制设备和接续，正式模式拒绝 epochs 临时覆盖。当前默认启动器只读 gro_first 的 seed42 配置；seed43/44 文件保留但不会自动执行。同一个 run_root 的任务串行运行。seed 数减少不会减少单次训练轮数或查询预算。
+单个完整配置的训练超参数以指定 JSON 为准。device、resume 控制设备和教师接续，正式模式拒绝 epochs 临时覆盖。启动器的 --defenses/--attacks 控制本次选择，默认 None/GRO 和 DFME，优先于 JSON 的历史 runnable_defenses；实际选择写入结果 manifest。默认只读 gro_first 的 seed42 配置，seed43/44 不自动执行。同一个 run_root 的任务串行运行。seed 数减少不会减少单次训练轮数或查询预算。
+
+当前教师有 valid NDCG@10/patience30 早停，外部代理没有。改代理轮数还会改变线性 scheduler 的 total_steps，并触及整份配置与教师绑定的兼容性；独立预算诊断与复用接口的待改项见 07，不能仅编辑 epochs 后强行加载旧教师。
 
 以下差异已经从当前代码核对，先列为后续修改计划，不擅自把诊断改成最终 Ours：
 
@@ -132,15 +134,15 @@ C1 只有在 A 的选列表机制有效、训练能恢复该列表且效用可�
 | 04 | BECOME 论文与源码等价性 | 当前为论文参数优先的独立重建；alpha/beta、频次、全局/批内选择及 RNG 差异见 03 |
 | 05 | BECOME 的 j 与负样本候选池解释 | 当前按源码每正例 30 个、source_softmax；纸面解释仍待确认 |
 | 06 | GRO 原论文设置的精确对应 | 当前为 SASRec 迁移；margin 0.5/0.5/0.5、swap_weight 0.01、追加最多1000/patience30 有工程选择，非全部由原论文确认 |
-| 07 | 当前正常轮次的收敛与耗时 | 首先观察 seed42 的真实曲线，不把不同攻击做效率排名 |
+| 07 | 代理轮数与停止标准 | 教师319/144最佳、均因patience30停止；Random每轮约63.36秒且无早停，1000轮约17.6小时；合成验证停止标准尚待固定 |
 | 08 | Ours 主线和效用约束 | A、B、C 尚未选定；保持头部 h、编辑数 m、候选数、参考集与权重均需讨论 |
 | 09 | Ours 正式接口与重复请求 | 尚无统一保护策略；若随机响应，需决定缓存和重复查询规则 |
 | 10 | Ours 历史过滤、候选完整性与输出长度 | 评价 ranking_api 已有，但实际保护策略的行为还未固定 |
-| 11 | 攻击精确中断恢复 | 教师可接续；攻击中断后重启该 cell，逐请求恢复尚未实现 |
+| 11 | 攻击精确中断恢复 | 教师可接续；当前攻击结束才存模型和查询，Random快照77轮无checkpoint。全状态中间保存/恢复优先于下一长任务，尚未实现 |
 | 12 | 候选贡献的新颖性与证据门槛 | 相对 GRO、GRAD²/梯度重定向及相关方法的差异须进一步审查；不能以现有基础公式直接认定创新 |
 | 13 | 机制诊断与当前攻击的配置一致性 | 上节已列旧配置、AdamW、负采样及 SGD/Adam 差异；暂未修改 |
 | 14 | T6/T7 和完整 Top-h-only 攻击 | 未来查询估计、跨代理迁移和同时限制生成/监督的 Top-h-only 尚未实现；仅为研究计划 |
-| 15 | None 配对对照与后续复测 | 当前按决定暂缓 None；补配对对照后才能评价防御收益，多种子等方案完成后再考虑 |
+| 15 | None 配对对照与后续复测 | 下一任务已改为 DFME × None/GRO，先得单种子防御差值；多种子等方案完成后再考虑 |
 
 <a id="section-7"></a>
 
@@ -159,8 +161,8 @@ C1 只有在 A 的选列表机制有效、训练能恢复该列表且效用可�
 
 ## 验证与结论边界
 
-本机已有测试覆盖数据边界、排序 API、损失结构、Full Ranking、实际保护输出效用、next_scores 与导出一致性；CPU smoke 覆盖最小训练、GRO、提取、checkpoint 和 JVP 接口。软件通过不等于理论候选有效，尚无正式 GPU 防御数值。
+本机已有测试覆盖数据边界、排序 API、损失结构、Full Ranking、实际保护输出效用、next_scores 与导出一致性；CPU smoke 覆盖最小训练、GRO、提取、checkpoint 和 JVP 接口。本次上传快照已有真实 GPU 教师验证指标，尚无完成的外部提取或正式防御收益。软件通过不等于理论候选有效。
 
 旧 sampled 和 agr@1 字段用于兼容；主表只输出冻结的五项 Full Ranking 指标。真实 test 仅用于冻结后的独立评价；探索方案使用防御方训练/验证信号，不把外部模型阶段反馈接到真实用户标签。
 
-本轮仅把默认执行改成单种子，并整理评审材料及单种子结果展示；未新增 Ours，也未改变既有攻击损失、GRO 目标、每次运行预算和训练轮数。其他评审意见可按本页候选方向、问题编号或 TBD 编号归并，再形成代码修改计划。
+本轮审查上传快照，将下一默认任务改为 DFME 配对并精简终端显示；未新增 Ours，也未改变既有攻击损失、GRO 目标、每次运行预算和训练轮数。代理恢复与停止规则已列入下一修改计划。其他评审意见可按本页候选方向、问题编号或 TBD 编号归并。

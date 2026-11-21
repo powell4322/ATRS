@@ -153,3 +153,12 @@ def append_jsonl(path: str | Path, record: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def print_epoch_progress(label: str, epoch: int, epochs: int, metrics: dict[str, float]) -> None:
+    """Print one compact epoch row; complete records remain in JSONL files."""
+    width = 20
+    filled = min(width, width * epoch // max(1, epochs))
+    bar = "#" * filled + "-" * (width - filled)
+    values = " | ".join(f"{name}={value:.5f}" for name, value in metrics.items())
+    print(f"{label} [{bar}] {epoch}/{epochs} | {values}", flush=True)

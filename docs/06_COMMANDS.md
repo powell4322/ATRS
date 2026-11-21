@@ -28,7 +28,11 @@ bash setup.sh
 python -u scripts/run_formal.py
 ```
 
-默认只使用 configs/gro_first/ml1m_sasrec_seed42.json，运行 ML-1M + SASRec 的 GRO × Random/DFME/BECOME，共三格，采用正常训练轮次。入口自动训练基础 clean teacher 和 GRO，并导出结果。None 攻击格暂缓，改进方案稍后确定；多种子复测等方案完成后再考虑，当前不会启动 seed 43/44。
+默认使用 configs/gro_first/ml1m_sasrec_seed42.json，仅运行 ML-1M + SASRec、seed42 的 DFME × None/GRO 两格。基础 clean/GRO 教师可接续并复用已完成的 checkpoint，结束后自动导出配对结果。不会自动运行 Random、BECOME、Ours 或其他种子。
+
+保留当前配置的代理 1000 轮，尚未擅自改成 200/300；下一次租卡前先按 07 审阅这一预算。基础教师与 GRO 有 patience=30 的早停，代理当前无早停。已完成的四个教师文件需放回 runs/gro_first/ml1m_sasrec_seed42/checkpoints，原配置保持不变；只有 Git clone 不会得到这些权重。
+
+命令行 --defenses/--attacks 选择本次任务，优先于配置内的历史选择；未指定时采用启动器的 DFME × None/GRO 默认值。训练参数仍以 JSON 为准。
 
 服务器直接运行正式实验，不执行 smoke。
 

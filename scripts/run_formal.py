@@ -1,4 +1,4 @@
-"""Run ML-1M/SASRec defense cells at full budgets; default to exploratory seed 42."""
+"""Run selected full-budget cells; default to seed42 DFME paired None/GRO."""
 from __future__ import annotations
 
 import argparse
@@ -59,9 +59,10 @@ def main() -> None:
                         default=["configs/gro_first/ml1m_sasrec_seed42.json"],
                         help="configuration files; defaults to seed 42 only")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--defenses", nargs="+", choices=["none", "gro"])
+    parser.add_argument("--defenses", nargs="+", choices=["none", "gro"], default=["none", "gro"],
+                        help="defenses to run; defaults to the None/GRO comparison")
     parser.add_argument("--attacks", nargs="+", choices=["random", "dfme", "become"],
-                        default=["random", "dfme", "become"])
+                        default=["dfme"], help="attacks to run; defaults to DFME only")
     args = parser.parse_args()
     os.chdir(ROOT)
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
@@ -82,7 +83,7 @@ def main() -> None:
         (logs / "environment.json").write_text(json.dumps(environment, indent=2), encoding="utf-8")
         command = [sys.executable, "-u", "-m", "atrs.cli"]
         common = ["--config", filename, "--device", args.device]
-        defenses = list(dict.fromkeys(args.defenses or config["runnable_defenses"]))
+        defenses = list(dict.fromkeys(args.defenses))
         attacks = list(dict.fromkeys(args.attacks))
         if "none" not in defenses:
             print("clean teacher is a shared training/reference prerequisite; None attack cells are deferred",

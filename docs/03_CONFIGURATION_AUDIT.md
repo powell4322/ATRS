@@ -18,7 +18,7 @@
 | GRO | 论文 Eq. (4)–(6)，BERT4Rec 设置；当前代码为独立 SASRec 迁移实现，官方源码等价性 TBD |
 | ATRS 历史配置 | configs/phase1/ml1m_sasrec_seed42.json，保留以供追溯 |
 | ATRS 正式配置 | configs/formal/ml1m_sasrec_seed42.json、seed43.json、seed44.json |
-| 当前 GRO 首轮配置 | 默认仅 configs/gro_first/ml1m_sasrec_seed42.json；seed43/44 保留供后续复测，当前不执行 |
+| 当前已训练教师的配置 | configs/gro_first/ml1m_sasrec_seed42.json 保持不变以复用 checkpoint；当前启动器选择 DFME × None/GRO，seed43/44 保留但不执行 |
 
 来源链接为 [DFME 论文](https://arxiv.org/abs/2109.01165)、[DFME 固定代码](https://github.com/Yueeeeeeee/RecSys-Extraction-Attack/tree/47f841b708eb25d3aa996aefcbdfba6b713741b3)、[BECOME 论文](https://doi.org/10.1145/3746252.3761032)、[BECOME 固定代码](https://github.com/Loche2/BECOME/tree/83355ef723e16ca826d013c23938f51f0e0b453e)、[GRO 论文](https://arxiv.org/abs/2310.16335)。
 
@@ -97,6 +97,8 @@ BECOME 未明确 warmup。其 §5.1.5 给出 rho_init=0.1、N=8、Gamma=0.5、al
 | Ours 机制与参数 | TBD | 等待研究证据，当前不生成 Ours 指标 |
 
 旧 configs/formal 的 20-epoch 方案保留供追溯。当前 gro_first 的训练轮次独立记录在 configuration_sources，同一攻击跨未来防御条件保持这一轮次规则。真实 test 数值不作为调参依据。
+
+2026-11-21上传快照确认：教师与 GRO 已因 patience30 在349/174轮停止，最佳319/144；Random代理无早停，1000轮成本明显高于教师。该证据不支持直接将教师硬截到300，也不能只凭代理 loss 平台改正式停止标准。独立预算诊断和下一任务计划见 [07](07_PROGRESS.md)。
 
 <a id="section-4"></a>
 

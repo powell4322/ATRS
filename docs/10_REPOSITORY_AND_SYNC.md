@@ -29,6 +29,7 @@
 | result/formal | 已验证的每 cell JSON、配置和 manifest，审查后进入 Git |
 | result/gro_first | 当前 GRO 首轮已完成 cell 的 JSON 与 manifest，审查后进入 Git |
 | result/research | 已审阅的精简诊断 JSON 与原始产物定位，审查后进入 Git |
+| result/snapshots | 未完成运行的轻量日志/元数据摘要，注明 valid 与未完成状态，不能当作完整正式 cell |
 | paper、.upstream、.audit | 本地论文、固定作者源码和历史核查，Git 忽略 |
 
 <a id="section-2"></a>
@@ -39,11 +40,15 @@
 
 需要改参数或模型时，用新配置、新 run_root，保留旧实验身份。当前以本地修改、Git 同步、指定实例计算为默认流程。账号为课题组共享账号，操作限于指定实例和项目目录，平台资源由用户手动管理。具体命令集中在 06。
 
+已完成、核对过的轻量结果可以直接提交并 push，不必等全部实验结束；未完成运行也可以以 snapshots 的明确状态记录。本轮已将用户 ZIP 的真实摘要与验证效用归档。完整 ZIP、权重和原始查询不进入 Git，下一服务器需要另外恢复到原 run_root。训练副本执行任务时保持源码提交不变，不在同一副本边训练边 pull/commit；代码更新在下一任务前进行。
+
 <a id="section-3"></a>
 
 ## 接续与结果复用
 
 正式启动器按现有 checkpoint 接续 Teacher，读取其优化器、scheduler、随机状态和 early-stop 计数。一个攻击 cell 完成后有结果 JSON、Student 和 query 文件，启动器核对源码、配置、数据与这些文件的 hash 后才跳过该格。攻击中断后重启对应 cell。
+
+2026-11-21 快照中四个教师 checkpoint 已在本机验证可复用，resume 不会重复训练已早停的模型。Random 仅有训练日志，不能恢复77轮权重。当前未提供攻击 --resume；新的 epoch 边界全状态保存与恢复需下一轮单独实现和测试。
 
 导出器按配置或命令选择的 cell 审查一致性，支持当前只有 GRO 的结果并保留 clean-reference 身份。按 seed 归档后聚合已完成种子，未执行 None 时等待后续配对比较。
 
